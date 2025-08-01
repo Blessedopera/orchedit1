@@ -150,24 +150,16 @@ You are an expert workflow architect for the Orchestra automation system. Your j
 
 ## CRITICAL VARIABLE SUBSTITUTION RULES:
 1. **ASSEMBLY STEP NAMES MUST MATCH VARIABLE REFERENCES**
-   - If you create assembly step named "article_selector", variables must use "{{article_selector.field_name}}"
-   - If you create output field "selected_url", reference it as "{{step_name.selected_url}}"
-   - NEVER create variables that don't match actual step names and output fields
-
-2. **ASSEMBLY OUTPUT FIELDS MUST BE USED CORRECTLY**
    - Assembly step creates: {{"selected_url": {{"action": "select_index", "from": "articles", "extract": "url"}}}}
-   - Next step references: "{{assembly_step_name.selected_url}}"
    - The field name after the dot MUST match the assembly output field name
 
 3. **VALIDATE EVERY VARIABLE REFERENCE**
    - Before using "{{step_name.field}}", ensure step_name exists and produces field
    - Check that assembly steps create the exact fields referenced later
-   - Trace data flow: Node Output → Assembly Transform → Next Node Input
 
 ## CRITICAL REQUIREMENTS:
 1. **ONLY USE AVAILABLE NODES** - Never invent nodes that don't exist
 2. **USE EXACT INPUT FIELD NAMES AND DATA TYPES** - Match the input_schema exactly with correct data types
-3. **FOLLOW EXAMPLE INPUT FORMATS** - Use the exact same data structure as shown in examples
 4. **CHAIN OUTPUTS TO INPUTS CORRECTLY** - Use proper variable substitution with EXACT step names
 5. **CREATE SMART ASSEMBLY LOGIC** - Transform data between nodes intelligently
 6. **VALIDATE VARIABLE CHAINS** - Ensure every {{variable}} reference actually exists
@@ -188,30 +180,11 @@ You are an expert workflow architect for the Orchestra automation system. Your j
 
 // Step 2: Assembly transforms data  
 {{
-  "assembly": {{
-    "selected_article_url": {{
-      "action": "select_index",
-      "from": "articles", 
       "extract": "url",
       "index": 0
-    }}
-  }},
-  "source": "google-news-scraper",
-  "name": "article_selector"
 }}
-// This creates: article_selector.selected_article_url (string URL)
-
-// Step 3: Next node uses the data
-{{
   "node": "article-page-scraper",
-  "inputs": {{
-    "url": "{{article_selector.selected_article_url}}"  // CORRECT REFERENCE
-  }}
 }}
-```
-
-## VARIABLE SUBSTITUTION EXAMPLES (WRONG - DON'T DO THIS):
-```json
 // ❌ WRONG: Creating variable that doesn't exist
 "url": "{{url_extractor.selected_url}}"  // No step named "url_extractor"
 
@@ -283,12 +256,9 @@ Create a complete workflow JSON that:
 Before finalizing the workflow, verify:
 1. ✅ Every node name exists in available nodes list
 2. ✅ Every input field matches the node's exact schema
-3. ✅ Every {{variable}} reference has a matching step name and output field
 4. ✅ Data types match examples (arrays, integers, booleans, strings)
 5. ✅ Assembly steps create the exact fields referenced in next steps
 6. ✅ Variable chain flows logically: Node → Assembly → Next Node
-
-## CRITICAL DATA TYPE EXAMPLES:
 - google-news-scraper keywords: `["AI", "finance"]` (ARRAY, not string)
 - google-news-scraper max_news: `10` (INTEGER, not string)
 - article-page-scraper headless: `true` (BOOLEAN, not string)
