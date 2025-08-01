@@ -153,6 +153,11 @@ You are an expert workflow architect for the Orchestra automation system. Your j
    - Assembly step creates: {{"selected_url": {{"action": "select_index", "from": "articles", "extract": "url"}}}}
    - The field name after the dot MUST match the assembly output field name
 
+2. **USE DOUBLE CURLY BRACES FOR ALL VARIABLES**
+   - ALWAYS use {{step_name.field}} format
+   - NEVER use single braces {step_name.field}
+   - Example: "url": "{{article_selector.selected_url}}"
+
 3. **VALIDATE EVERY VARIABLE REFERENCE**
    - Before using "{{step_name.field}}", ensure step_name exists and produces field
    - Check that assembly steps create the exact fields referenced later
@@ -282,6 +287,11 @@ Before finalizing the workflow, verify:
 - `{{article_selector.selected_article_url}}` - URL from assembly step named "article_selector" 
 - `{{article-page-scraper.article_text}}` - Text from article-page-scraper node
 - `{{text_processor.clean_content}}` - Content from assembly step named "text_processor"
+
+## CRITICAL: VARIABLE SYNTAX MUST BE EXACT
+✅ CORRECT: "url": "{{article_selector.selected_url}}"
+❌ WRONG: "url": "{article_selector.selected_url}"
+❌ WRONG: "url": "{{article_selector.selected_article_url}}" (if assembly creates "selected_url")
 
 Create the workflow JSON now. Be precise with:
 1. Field names AND data types

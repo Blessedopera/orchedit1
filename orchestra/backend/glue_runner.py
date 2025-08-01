@@ -70,6 +70,14 @@ class OrchestraGlueRunner:
                         
                         if value is not None:
                             result = result.replace(f"{{{{{match}}}}}", str(value))
+                        else:
+                            print(f"   ⚠️ Variable substitution failed: {{{{{match}}}}} - value is None")
+                            print(f"   📋 Available memory keys: {list(memory.keys())}")
+                            if node_name in memory:
+                                print(f"   📋 Available fields in {node_name}: {list(memory[node_name].keys()) if isinstance(memory[node_name], dict) else 'Not a dict'}")
+                    else:
+                        print(f"   ⚠️ Variable substitution failed: {{{{{match}}}}} - node '{node_name}' not found in memory")
+                        print(f"   📋 Available memory keys: {list(memory.keys())}")
             
             return result
         
