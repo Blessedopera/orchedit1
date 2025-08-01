@@ -1,0 +1,93 @@
+"total_count":
+50
+"dataset_id":
+"f48Xupz9fVP8MU51I"
+"keywords_used":[
+0
+:
+"healthcare"
+1
+:
+"AI"
+2
+:
+"artificial intelligence"
+3
+:
+"machine learning"
+4
+:
+"medical AI"
+]
+"time_period":
+"d"
+"region_code":
+"US:en"
+"selected_article_url":
+"https://news.google.com/read/CBMikANBVV95cUxQQ3FGdk9lMVdPRmZiRFZnQlF4QW1yeENBaDBFdEFDZGx5WVZUcXhzTkg1NFpKVTBfWUJFUnlrR0ZkSVlwbVJNeDNkU0RIVlJPOTlxMnMwcXJGc3lHTlJabE5qTU9MMFA2S3Q0Z2I0T0NfbTdaamtXeml3Nlc5MEUwOUo0YjVOakpOUEZJSXh1SHZSbzBrdlEwa3poWGxVUkpGWDZPMC1RdWxLWWN6aUZ2cFF4OF9id2RkUUVPUlp3aVdlWS1Ic3lmbWJha3ZlLXg0ZmFEQ2pCMTF0YVo3dlFtTjNKSVlLQmY5ZnU5Nks5ZGNYR0ZUMlBkVHF6NENud3VZaHRsRHZCWWlJRzJLd0xhWFlaNEF0MXFxcGk4WDNlUlBndUNVWEh5b0NoTGNiNnJ2eVpvREdUd3hFWFV1dGFZcklZSldXRW02V3F2c0lBbjRLUnVleUdtUHkwN1hJd0tfMlJoZERqTmtFeXk3QVNWZng4Y0Y0VnkxdnNxNmhZY2pDV1pIUmNXajIyMXJtcEMy?hl=en-US&gl=US&ceid=US%3Aen"
+}
+"intelligent_article_selector":{
+"selected_article_url":
+"https://news.google.com/read/CBMikANBVV95cUxQQ3FGdk9lMVdPRmZiRFZnQlF4QW1yeENBaDBFdEFDZGx5WVZUcXhzTkg1NFpKVTBfWUJFUnlrR0ZkSVlwbVJNeDNkU0RIVlJPOTlxMnMwcXJGc3lHTlJabE5qTU9MMFA2S3Q0Z2I0T0NfbTdaamtXeml3Nlc5MEUwOUo0YjVOakpOUEZJSXh1SHZSbzBrdlEwa3poWGxVUkpGWDZPMC1RdWxLWWN6aUZ2cFF4OF9id2RkUUVPUlp3aVdlWS1Ic3lmbWJha3ZlLXg0ZmFEQ2pCMTF0YVo3dlFtTjNKSVlLQmY5ZnU5Nks5ZGNYR0ZUMlBkVHF6NENud3VZaHRsRHZCWWlJRzJLd0xhWFlaNEF0MXFxcGk4WDNlUlBndUNVWEh5b0NoTGNiNnJ2eVpvREdUd3hFWFV1dGFZcklZSldXRW02V3F2c0lBbjRLUnVleUdtUHkwN1hJd0tfMlJoZERqTmtFeXk3QVNWZng4Y0Y0VnkxdnNxNmhZY2pDV1pIUmNXajIyMXJtcEMy?hl=en-US&gl=US&ceid=US%3Aen"
+"selected_article_title":
+"Opinion | The Big Beautiful Bill’s Healthcare Opportunity"
+}
+"article-page-scraper":{
+"error":
+"Could not extract sufficient article content. Got 0 characters. URL may be blocked or require special handling."
+"html_file":
+NULL
+"article_text":
+""
+"url":
+"https://news.google.com/read/CBMikANBVV95cUxQQ3FGdk9lMVdPRmZiRFZnQlF4QW1yeENBaDBFdEFDZGx5WVZUcXhzTkg1NFpKVTBfWUJFUnlrR0ZkSVlwbVJNeDNkU0RIVlJPOTlxMnMwcXJGc3lHTlJabE5qTU9MMFA2S3Q0Z2I0T0NfbTdaamtXeml3Nlc5MEUwOUo0YjVOakpOUEZJSXh1SHZSbzBrdlEwa3poWGxVUkpGWDZPMC1RdWxLWWN6aUZ2cFF4OF9id2RkUUVPUlp3aVdlWS1Ic3lmbWJha3ZlLXg0ZmFEQ2pCMTF0YVo3dlFtTjNKSVlLQmY5ZnU5Nks5ZGNYR0ZUMlBkVHF6NENud3VZaHRsRHZCWWlJRzJLd0xhWFlaNEF0MXFxcGk4WDNlUlBndUNVWEh5b0NoTGNiNnJ2eVpvREdUd3hFWFV1dGFZcklZSldXRW02V3F2c0lBbjRLUnVleUdtUHkwN1hJd0tfMlJoZERqTmtFeXk3QVNWZng4Y0Y0VnkxdnNxNmhZY2pDV1pIUmNXajIyMXJtcEMy?hl=en-US&gl=US&ceid=US%3Aen"
+"success":
+false
+"debug_info":{
+"original_url":
+"https://news.google.com/read/CBMikANBVV95cUxQQ3FGdk9lMVdPRmZiRFZnQlF4QW1yeENBaDBFdEFDZGx5WVZUcXhzTkg1NFpKVTBfWUJFUnlrR0ZkSVlwbVJNeDNkU0RIVlJPOTlxMnMwcXJGc3lHTlJabE5qTU9MMFA2S3Q0Z2I0T0NfbTdaamtXeml3Nlc5MEUwOUo0YjVOakpOUEZJSXh1SHZSbzBrdlEwa3poWGxVUkpGWDZPMC1RdWxLWWN6aUZ2cFF4OF9id2RkUUVPUlp3aVdlWS1Ic3lmbWJha3ZlLXg0ZmFEQ2pCMTF0YVo3dlFtTjNKSVlLQmY5ZnU5Nks5ZGNYR0ZUMlBkVHF6NENud3VZaHRsRHZCWWlJRzJLd0xhWFlaNEF0MXFxcGk4WDNlUlBndUNVWEh5b0NoTGNiNnJ2eVpvREdUd3hFWFV1dGFZcklZSldXRW02V3F2c0lBbjRLUnVleUdtUHkwN1hJd0tfMlJoZERqTmtFeXk3QVNWZng4Y0Y0VnkxdnNxNmhZY2pDV1pIUmNXajIyMXJtcEMy?hl=en-US&gl=US&ceid=US%3Aen"
+"resolved_url":
+"https://news.google.com/read/CBMikANBVV95cUxQQ3FGdk9lMVdPRmZiRFZnQlF4QW1yeENBaDBFdEFDZGx5WVZUcXhzTkg1NFpKVTBfWUJFUnlrR0ZkSVlwbVJNeDNkU0RIVlJPOTlxMnMwcXJGc3lHTlJabE5qTU9MMFA2S3Q0Z2I0T0NfbTdaamtXeml3Nlc5MEUwOUo0YjVOakpOUEZJSXh1SHZSbzBrdlEwa3poWGxVUkpGWDZPMC1RdWxLWWN6aUZ2cFF4OF9id2RkUUVPUlp3aVdlWS1Ic3lmbWJha3ZlLXg0ZmFEQ2pCMTF0YVo3dlFtTjNKSVlLQmY5ZnU5Nks5ZGNYR0ZUMlBkVHF6NENud3VZaHRsRHZCWWlJRzJLd0xhWFlaNEF0MXFxcGk4WDNlUlBndUNVWEh5b0NoTGNiNnJ2eVpvREdUd3hFWFV1dGFZcklZSldXRW02V3F2c0lBbjRLUnVleUdtUHkwN1hJd0tfMlJoZERqTmtFeXk3QVNWZng4Y0Y0VnkxdnNxNmhZY2pDV1pIUmNXajIyMXJtcEMy?hl=en-US&gl=US&ceid=US%3Aen"
+"html_length":
+1643
+}
+}
+"content_processor":{}
+"article-processor":{
+"error":
+"Could not extract sufficient article content (minimum 50 characters required)"
+"success":
+false
+"extracted_length":
+40
+}
+
+
+
+----------------------------------------- 
+Another trial 
+name":
+"Custom AI Workflow"
+"description":
+"AI-generated workflow based on user requirements"
+"version":
+"1.0.0"
+"created_by":
+"Orchestra AI Agent"
+"user_request":
+"Find the latest news articles about Hollywood and how the summer season is doing with all the films released then select the The article you think is most interesting and summarize it for me"
+"steps":[
+0:{
+"node":
+"google-news-scraper"
+"inputs":{
+"api_token":
+"your-apify-token-here"
+"keywords":[
+0
+:
+"AI"
+1
+:
+"technology"
+]
