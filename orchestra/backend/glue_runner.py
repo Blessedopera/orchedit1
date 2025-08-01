@@ -38,8 +38,8 @@ class OrchestraGlueRunner:
     def substitute_variables(self, data: Any, memory: Dict[str, Any]) -> Any:
         """Recursively substitute {{node.field}} variables in data"""
         if isinstance(data, str):
-            # Find all {{variable}} patterns
-            pattern = r'\{\{([^}]+)\}\}'
+            # Find all {{variable}} and {variable} patterns (support both formats)
+            pattern = r'\{\{?([^}]+)\}?\}'
             matches = re.findall(pattern, data)
             
             result = data
@@ -69,14 +69,16 @@ class OrchestraGlueRunner:
                                 break
                         
                         if value is not None:
+                            # Replace both {{match}} and {match} patterns
                             result = result.replace(f"{{{{{match}}}}}", str(value))
+                            result = result.replace(f"{{{match}}}", str(value))
                         else:
-                            print(f"   ⚠️ Variable substitution failed: {{{{{match}}}}} - value is None")
+                            print(f"   ⚠️ Variable substitution failed: {{{match}}} - value is None")
                             print(f"   📋 Available memory keys: {list(memory.keys())}")
                             if node_name in memory:
                                 print(f"   📋 Available fields in {node_name}: {list(memory[node_name].keys()) if isinstance(memory[node_name], dict) else 'Not a dict'}")
                     else:
-                        print(f"   ⚠️ Variable substitution failed: {{{{{match}}}}} - node '{node_name}' not found in memory")
+                        print(f"   ⚠️ Variable substitution failed: {{{match}}} - node '{node_name}' not found in memory")
                         print(f"   📋 Available memory keys: {list(memory.keys())}")
             
             return result
@@ -341,7 +343,9 @@ class OrchestraGlueRunner:
                 
                 # Substitute variables in inputs
                 resolved_inputs = self.substitute_variables(step_inputs, self.execution_memory)
-                print(f"   🔄 Resolved inputs: {list(resolved_inputs.keys())}")
+                print(f"   🔄 Original inputs: {step_inputs}")
+                print(f"   🔄 Resolved inputs: {resolved_inputs}")
+                print(f"   🔄 Available memory: {list(self.execution_memory.keys())}")
                 
                 # Execute the node
                 try:
