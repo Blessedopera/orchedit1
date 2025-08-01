@@ -241,12 +241,26 @@ def create_workflow_with_agent(user_request: str):
                 st.subheader("🤖 Agent Response")
                 st.write(result["response"])
                 
-                            # Check if workflow was generated
+                # Check if workflow was generated
                 if "workflow_json" in result and result["workflow_json"]:
                     workflow_json = result["workflow_json"]
                     
-                    st.subheader("📋 Generated Workflow")
-                    st.json(workflow_json)
+                    st.subheader("📋 Generated Workflow JSON")
+                    
+                    # Create properly formatted JSON string
+                    formatted_json = json.dumps(workflow_json, indent=2)
+                    
+                    # Display in copyable text area
+                    st.text_area(
+                        "Copy this JSON (Click in box, Ctrl+A, Ctrl+C):",
+                        value=formatted_json,
+                        height=400,
+                        key=f"workflow_json_{len(st.session_state.conversation_history)}"
+                    )
+                    
+                    # Also show as expandable JSON for reference
+                    with st.expander("📋 View Formatted JSON", expanded=False):
+                        st.json(workflow_json)
                     
                     # Save workflow option
                     col1, col2 = st.columns(2)
