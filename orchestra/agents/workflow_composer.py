@@ -52,15 +52,8 @@ class WorkflowComposerAgent:
                 node_name = node['node_name']
                 self.available_nodes[node_name] = node
                 
-                # Store detailed schema information
-                self.node_schemas[node_name] = {
-                    'name': node.get('name', node_name),
-                    'description': node.get('description', ''),
-                    'input_schema': node.get('input_schema', {}),
-                    'output_schema': node.get('output_schema', []),
-                    'type': node.get('type', 'unknown'),
-                    'dependencies': node.get('dependencies', [])
-                }
+                # Load detailed schema with example inputs for data type understanding
+                self.node_schemas[node_name] = self._load_detailed_node_schema(node_name, node)
             
             print(f"Loaded {len(self.available_nodes)} available nodes: {list(self.available_nodes.keys())}")
             
@@ -72,6 +65,61 @@ class WorkflowComposerAgent:
                 'article-page-scraper': {'node_name': 'article-page-scraper'},
                 'article-processor': {'node_name': 'article-processor'}
             }
+    
+    def _load_detailed_node_schema(self, node_name: str, node_config: Dict[str, Any]) -> Dict[str, Any]:
+        """Load detailed schema including example inputs to understand data types"""
+        schema = {
+            'name': node_config.get('name', node_name),
+            'description': node_config.get('description', ''),
+            'input_schema': node_config.get('input_schema', {}),
+            'output_schema': node_config.get('output_schema', []),
+            'type': node_config.get('type', 'unknown'),
+            'dependencies': node_config.get('dependencies', [])
+        }
+        
+        # Load example input to understand exact data types
+        try:
+            current_dir = Path(__file__).parent
+            example_path = current_dir.parent / "nodes" / node_name / "example_input.json"
+            
+            if example_path.exists():
+                with open(example_path, 'r') as f:
+                    example_input = json.load(f)
+                    schema['example_input'] = example_input
+                    schema['field_types'] = self._analyze_field_types(example_input)
+        except Exception as e:
+            print(f"Warning: Could not load example input for {node_name}: {e}")
+            schema['example_input'] = {}
+            schema['field_types'] = {}
+        
+        return schema
+    
+    def _analyze_field_types(self, example_input: Dict[str, Any]) -> Dict[str, str]:
+        """Analyze field types from example input"""
+        field_types = {}
+        
+        for field, value in example_input.items():
+            if isinstance(value, list):
+                if value and isinstance(value[0], str):
+                    field_types[field] = "array_of_strings"
+                elif value and isinstance(value[0], dict):
+                    field_types[field] = "array_of_objects"
+                else:
+                    field_types[field] = "array"
+            elif isinstance(value, dict):
+                field_types[field] = "object"
+            elif isinstance(value, str):
+                field_types[field] = "string"
+            elif isinstance(value, int):
+                field_types[field] = "integer"
+            elif isinstance(value, float):
+                field_types[field] = "number"
+            elif isinstance(value, bool):
+                field_types[field] = "boolean"
+            else:
+                field_types[field] = "unknown"
+        
+        return field_types
     
     def _call_openrouter(self, messages: List[Dict[str, str]], max_tokens: int = 2000) -> str:
         """Call OpenRouter API"""
@@ -102,9 +150,18 @@ You are an expert workflow architect for the Orchestra automation system. Your j
 
 ## CRITICAL REQUIREMENTS:
 1. **ONLY USE AVAILABLE NODES** - Never invent nodes that don't exist
-2. **USE EXACT INPUT FIELD NAMES** - Match the input_schema exactly
-3. **CHAIN OUTPUTS TO INPUTS CORRECTLY** - Use proper variable substitution
-4. **CREATE SMART ASSEMBLY LOGIC** - Transform data between nodes intelligently
+2. **USE EXACT INPUT FIELD NAMES AND DATA TYPES** - Match the input_schema exactly with correct data types
+3. **FOLLOW EXAMPLE INPUT FORMATS** - Use the exact same data structure as shown in examples
+4. **CHAIN OUTPUTS TO INPUTS CORRECTLY** - Use proper variable substitution
+5. **CREATE SMART ASSEMBLY LOGIC** - Transform data between nodes intelligently
+
+## DATA TYPE REQUIREMENTS:
+- If example shows `"keywords": ["AI", "tech"]` → ALWAYS use array format: `["keyword1", "keyword2"]`
+- If example shows `"max_news": 5` → ALWAYS use integer: `5` (not string "5")
+- If example shows `"headless": true` → ALWAYS use boolean: `true` (not string "true")
+- If example shows `"api_token": "your-token"` → Use string format
+
+## CRITICAL: MATCH EXACT DATA TYPES FROM EXAMPLES!
 
 ## AVAILABLE NODES AND THEIR EXACT SCHEMAS:
 {node_info}
@@ -137,7 +194,7 @@ Create a complete workflow JSON that:
     {{
       "node": "exact-node-name-from-available-list",
       "inputs": {{
-        "exact_field_name": "value or {{previous_step.output_field}}"
+        "exact_field_name": "CORRECT_DATA_TYPE_value_or_{{previous_step.output_field}}"
       }}
     }},
     {{
@@ -157,12 +214,20 @@ Create a complete workflow JSON that:
 }}
 ```
 
+## CRITICAL DATA TYPE EXAMPLES:
+- google-news-scraper keywords: `["AI", "finance"]` (ARRAY, not string)
+- google-news-scraper max_news: `10` (INTEGER, not string)
+- article-page-scraper headless: `true` (BOOLEAN, not string)
+- article-processor temperature: `0.3` (NUMBER, not string)
+
 ## EXAMPLE VARIABLE SUBSTITUTION:
 - `{{google-news-scraper.articles}}` - Gets articles array from google-news-scraper
 - `{{article_selector.selected_url}}` - Gets selected_url from assembly step named article_selector
 - `{{article-page-scraper.article_text}}` - Gets article_text from article-page-scraper
 
-Create the workflow JSON now. Be precise with field names and ensure the workflow actually works with the available nodes.
+Create the workflow JSON now. Be precise with field names AND data types, and ensure the workflow actually works with the available nodes.
+
+REMEMBER: Look at the EXAMPLE USAGE for each node to see the EXACT data format required!
 """
 
         try:
@@ -210,20 +275,85 @@ Create the workflow JSON now. Be precise with field names and ensure the workflo
         node_details = []
         
         for node_name, schema in self.node_schemas.items():
+            # Create detailed schema with exact data types and examples
+            input_details = self._format_input_schema_with_types(schema)
+            output_details = self._format_output_schema(schema)
+            
             detail = f"""
 ### NODE: {node_name}
 - **Name**: {schema['name']}
 - **Description**: {schema['description']}
 - **Type**: {schema['type']}
-- **Input Schema**: 
-  - Required: {schema['input_schema'].get('required', [])}
-  - Optional: {schema['input_schema'].get('optional', [])}
-- **Output Schema**: {schema['output_schema']}
-- **Use Case**: {self._get_node_use_case(node_name, schema)}
+
+**EXACT INPUT SCHEMA WITH DATA TYPES:**
+{input_details}
+
+**OUTPUT SCHEMA:**
+{output_details}
+
+**EXAMPLE USAGE:**
+{self._get_example_usage(node_name, schema)}
 """
             node_details.append(detail)
         
         return "\n".join(node_details)
+    
+    def _format_input_schema_with_types(self, schema: Dict[str, Any]) -> str:
+        """Format input schema with exact data types and examples"""
+        input_schema = schema.get('input_schema', {})
+        field_types = schema.get('field_types', {})
+        example_input = schema.get('example_input', {})
+        
+        required_fields = input_schema.get('required', [])
+        optional_fields = input_schema.get('optional', [])
+        
+        details = []
+        
+        if required_fields:
+            details.append("**REQUIRED FIELDS:**")
+            for field in required_fields:
+                field_type = field_types.get(field, 'unknown')
+                example_value = example_input.get(field, 'N/A')
+                details.append(f"  - `{field}` ({field_type}): Example = {json.dumps(example_value)}")
+        
+        if optional_fields:
+            details.append("**OPTIONAL FIELDS:**")
+            for field in optional_fields:
+                field_type = field_types.get(field, 'unknown')
+                example_value = example_input.get(field, 'N/A')
+                details.append(f"  - `{field}` ({field_type}): Example = {json.dumps(example_value)}")
+        
+        return "\n".join(details) if details else "No input schema available"
+    
+    def _format_output_schema(self, schema: Dict[str, Any]) -> str:
+        """Format output schema information"""
+        output_schema = schema.get('output_schema', [])
+        if isinstance(output_schema, list):
+            return "Fields: " + ", ".join(output_schema)
+        else:
+            return str(output_schema)
+    
+    def _get_example_usage(self, node_name: str, schema: Dict[str, Any]) -> str:
+        """Get example usage for the node"""
+        example_input = schema.get('example_input', {})
+        
+        if example_input:
+            # Create a clean example without sensitive data
+            clean_example = {}
+            for key, value in example_input.items():
+                if 'key' in key.lower() or 'token' in key.lower():
+                    clean_example[key] = f"your-{key.replace('_', '-')}-here"
+                else:
+                    clean_example[key] = value
+            
+            return f"""```json
+{{
+  "node": "{node_name}",
+  "inputs": {json.dumps(clean_example, indent=4)}
+}}
+```"""
+        else:
+            return "No example available"
     
     def _get_node_use_case(self, node_name: str, schema: Dict[str, Any]) -> str:
         """Get specific use case information for each node"""
