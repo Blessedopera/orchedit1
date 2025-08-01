@@ -290,8 +290,8 @@ Before finalizing the workflow, verify:
 
 ## CRITICAL: VARIABLE SYNTAX MUST BE EXACT
 ✅ CORRECT: "url": "{{article_selector.selected_url}}"
-❌ WRONG: "url": "{article_selector.selected_url}"
-❌ WRONG: "url": "{{article_selector.selected_article_url}}" (if assembly creates "selected_url")
+❌ WRONG: "url": "{{article_selector.selected_url}}" (single braces)
+❌ WRONG: "url": "{{{{article_selector.selected_article_url}}}}" (if assembly creates "selected_url")
 
 Create the workflow JSON now. Be precise with:
 1. Field names AND data types
