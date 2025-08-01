@@ -330,10 +330,17 @@ REMEMBER:
             # Extract JSON from response
             workflow_json = self._extract_json_from_response(response)
             
-            # Validate JSON format
+            # Ensure proper JSON formatting
             if workflow_json:
-                # Ensure proper JSON formatting
                 workflow_json = self._ensure_proper_json_format(workflow_json)
+                
+                # Validate JSON syntax
+                if not self._validate_json_syntax(workflow_json):
+                    return {
+                        "success": False,
+                        "error": "Generated workflow contains invalid JSON syntax",
+                        "response": response
+                    }
             
             if workflow_json:
                 # Validate the workflow
