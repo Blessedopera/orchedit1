@@ -20,7 +20,7 @@ class WorkflowComposerAgent:
             self.nodes_dir = current_dir.parent / "nodes"
         else:
             self.nodes_dir = Path(nodes_dir)
-        
+
         # Initialize LLM with OpenRouter and Qwen3 Coder
         self.llm = ChatOpenAI(
             base_url="https://openrouter.ai/api/v1",
@@ -29,16 +29,16 @@ class WorkflowComposerAgent:
             temperature=0.3,
             max_tokens=2000
         )
-        
+
         # Initialize conversation history
         self.conversation_history = []
-        
+
         # Initialize tools
         self.tools = self._create_tools()
-        
+
         # Workflow memory for reuse
         self.workflow_memory = {}
-    
+
     def _create_tools(self) -> List[Tool]:
         """Create LangChain tools for the agent"""
         tools = [
@@ -69,7 +69,7 @@ class WorkflowComposerAgent:
             )
         ]
         return tools
-    
+
     def _call_tool(self, tool_name: str, tool_input: str) -> str:
         """Call a specific tool by name"""
         for tool in self.tools:
@@ -79,12 +79,12 @@ class WorkflowComposerAgent:
                 except Exception as e:
                     return f"Error calling {tool_name}: {str(e)}"
         return f"Tool {tool_name} not found"
-    
+
     def _process_agent_response(self, response: str, max_iterations: int = 5) -> str:
         """Process agent response and handle tool calls"""
         iteration = 0
         current_response = response
-        
+
         while iteration < max_iterations:
             # Check if response contains tool calls
             if "Action:" in current_response and "Action Input:" in current_response:
@@ -93,7 +93,7 @@ class WorkflowComposerAgent:
                     lines = current_response.split('\n')
                     action_line = None
                     input_line = None
-                    
+
                     for i, line in enumerate(lines):
                         if line.strip().startswith("Action:"):
                             action_line = line.strip().replace("Action:", "").strip()
@@ -104,11 +104,11 @@ class WorkflowComposerAgent:
                                 input_text = lines[i + 1].strip()
                             input_line = input_text
                             break
-                    
+
                     if action_line and input_line:
                         # Call the tool
                         tool_result = self._call_tool(action_line, input_line)
-                        
+
                         # Create follow-up prompt with tool result
                         follow_up_prompt = f"""
 Previous response: {current_response}
@@ -117,13 +117,13 @@ Tool Result from {action_line}: {tool_result}
 
 Based on this tool result, please continue with your analysis and provide the final workflow JSON. If you need to call more tools, use the same Action/Action Input format.
 """
-                        
+
                         # Get next response
                         messages = [
                             SystemMessage(content="You are an expert Orchestra workflow composer. Continue your analysis based on the tool results."),
                             HumanMessage(content=follow_up_prompt)
                         ]
-                        
+
                         next_response = self.llm.invoke(messages)
                         current_response = next_response.content
                         iteration += 1
@@ -135,17 +135,17 @@ Based on this tool result, please continue with your analysis and provide the fi
             else:
                 # No more tool calls needed
                 break
-        
+
         return current_response
-    
+
     def _discover_nodes(self, query: str = "") -> str:
         """Discover available nodes and their capabilities"""
         try:
             nodes_info = []
-            
+
             if not self.nodes_dir.exists():
                 return "No nodes directory found"
-            
+
             for node_dir in self.nodes_dir.iterdir():
                 if node_dir.is_dir():
                     config_path = node_dir / "config.json"
@@ -153,7 +153,7 @@ Based on this tool result, please continue with your analysis and provide the fi
                         try:
                             with open(config_path, 'r') as f:
                                 config = json.load(f)
-                            
+
                             node_info = {
                                 "node_name": node_dir.name,
                                 "name": config.get("name", node_dir.name),
@@ -169,26 +169,26 @@ Based on this tool result, please continue with your analysis and provide the fi
                                 "node_name": node_dir.name,
                                 "error": f"Could not load config: {str(e)}"
                             })
-            
+
             return json.dumps(nodes_info, indent=2)
-        
+
         except Exception as e:
             return f"Error discovering nodes: {str(e)}"
-    
+
     def _validate_workflow(self, workflow_json: str) -> str:
         """Validate workflow JSON structure"""
         try:
             workflow = json.loads(workflow_json)
-            
+
             errors = []
-            
+
             # Check required fields
             if "steps" not in workflow:
                 errors.append("Missing 'steps' field")
-            
+
             if "name" not in workflow:
                 errors.append("Missing 'name' field")
-            
+
             # Validate steps
             if "steps" in workflow:
                 for i, step in enumerate(workflow["steps"]):
@@ -196,7 +196,7 @@ Based on this tool result, please continue with your analysis and provide the fi
                         # Node step validation
                         if "inputs" not in step:
                             errors.append(f"Step {i+1}: Missing 'inputs' field")
-                        
+
 
 
     def _create_fallback_workflow(self, user_request: str, keywords: List[str]) -> Dict[str, Any]:
@@ -244,25 +244,25 @@ Based on this tool result, please continue with your analysis and provide the fi
                         node_path = self.nodes_dir / node_name
                         if not node_path.exists():
                             errors.append(f"Step {i+1}: Node '{node_name}' does not exist")
-                    
+
                     elif "assembly" in step:
                         # Assembly step validation
                         if "source" not in step:
                             errors.append(f"Step {i+1}: Assembly step missing 'source' field")
-                    
+
                     else:
                         errors.append(f"Step {i+1}: Must contain either 'node' or 'assembly' field")
-            
+
             if errors:
                 return f"Validation errors: {'; '.join(errors)}"
             else:
                 return "Workflow validation passed"
-        
+
         except json.JSONDecodeError as e:
             return f"Invalid JSON: {str(e)}"
         except Exception as e:
             return f"Validation error: {str(e)}"
-    
+
     def _save_workflow(self, input_data: str) -> str:
         """Save workflow to file"""
         try:
@@ -270,24 +270,24 @@ Based on this tool result, please continue with your analysis and provide the fi
             parts = input_data.split("|", 1)
             if len(parts) != 2:
                 return "Input format should be: filename|workflow_json"
-            
+
             filename, workflow_json = parts
             workflow = json.loads(workflow_json)
-            
+
             # Ensure workflows directory exists
             workflows_dir = self.nodes_dir.parent / "workflows"
             workflows_dir.mkdir(exist_ok=True)
-            
+
             # Save workflow
             workflow_path = workflows_dir / filename
             with open(workflow_path, 'w') as f:
                 json.dump(workflow, f, indent=2)
-            
+
             return f"Workflow saved to: {workflow_path}"
-        
+
         except Exception as e:
             return f"Error saving workflow: {str(e)}"
-    
+
     def _get_workflow_template(self, query: str = "") -> str:
         """Get the standard workflow template"""
         template = {
@@ -315,9 +315,9 @@ Based on this tool result, please continue with your analysis and provide the fi
                 }
             ]
         }
-        
+
         return json.dumps(template, indent=2)
-    
+
     def _analyze_assembly_needs(self, input_data: str) -> str:
         """Analyze what assembly steps are needed between nodes"""
         try:
@@ -325,32 +325,25 @@ Based on this tool result, please continue with your analysis and provide the fi
             parts = input_data.split("|")
             if len(parts) != 2:
                 return "Input format should be: source_node|target_node"
-            
+
             source_node, target_node = parts
-            
+
             # Load node configurations
             source_config_path = self.nodes_dir / source_node / "config.json"
             target_config_path = self.nodes_dir / target_node / "config.json"
-            
+
             if not source_config_path.exists():
                 return f"Source node '{source_node}' config not found"
-            # Create messages for error analysis
-            messages = [
-                SystemMessage(content="You are an expert at analyzing Orchestra workflow errors and providing solutions."),
-                HumanMessage(content=error_analysis_prompt)
-            ]
             
-            response = self.llm.invoke(messages)
-            agent_response = response.content
             if not target_config_path.exists():
                 return f"Target node '{target_node}' config not found"
-            
+
             with open(source_config_path, 'r') as f:
                 source_config = json.load(f)
-            
+
             with open(target_config_path, 'r') as f:
                 target_config = json.load(f)
-            
+
             analysis = {
                 "source_node": source_node,
                 "target_node": target_node,
@@ -358,39 +351,39 @@ Based on this tool result, please continue with your analysis and provide the fi
                 "target_inputs": target_config.get("input_schema", {}),
                 "assembly_suggestions": []
             }
-            
+
             # Analyze compatibility
             target_required = target_config.get("input_schema", {}).get("required", [])
             target_optional = target_config.get("input_schema", {}).get("optional", [])
-            
+
             for required_field in target_required:
                 if required_field not in source_config.get("output_schema", []):
                     analysis["assembly_suggestions"].append(
                         f"Required field '{required_field}' not directly available from {source_node}. "
                         f"May need assembly step to extract or transform data."
                     )
-            
+
             return json.dumps(analysis, indent=2)
-        
+
         except Exception as e:
             return f"Error analyzing assembly needs: {str(e)}"
-    
+
     def create_workflow(self, user_request: str) -> Dict[str, Any]:
         """Main method to create a workflow from user request"""
         try:
             # Add to conversation history
             self.conversation_history.append({"role": "user", "content": user_request})
-            
+
             # Extract keywords from user request for intelligent input customization
             keywords = self._extract_keywords_from_request(user_request)
-            
+
             # Create the workflow directly based on available nodes
             workflow_json = self._create_workflow_from_request(user_request, keywords)
-            
+
             if workflow_json:
                 # Add to conversation history
                 self.conversation_history.append({"role": "assistant", "content": f"Created workflow: {workflow_json['name']}"})
-                
+
                 return {
                     "success": True,
                     "response": f"I've created a workflow called '{workflow_json['name']}' that will:\n\n1. Search for news articles about {', '.join(keywords)}\n2. Select a relevant article about AI company funding\n3. Scrape the full article content\n4. Generate an AI summary\n\nThe workflow is ready to save and execute!",
@@ -404,7 +397,7 @@ Based on this tool result, please continue with your analysis and provide the fi
                     "response": "I couldn't create a workflow for your request. Please try rephrasing it.",
                     "conversation_history": self.conversation_history
                 }
-        
+
         except Exception as e:
             return {
                 "success": False,
@@ -412,11 +405,11 @@ Based on this tool result, please continue with your analysis and provide the fi
                 "response": f"Failed to create workflow: {str(e)}",
                 "conversation_history": self.conversation_history
             }
-    
+
     def _extract_keywords_from_request(self, user_request: str) -> List[str]:
         """Extract comprehensive keywords from ANY user request using intelligent analysis"""
         return self._extract_all_relevant_keywords(user_request)
-    
+
     def _create_workflow_from_request(self, user_request: str, keywords: List[str]) -> Optional[Dict[str, Any]]:
         """Create workflow JSON from ANY user request using ANY available nodes"""
         try:
@@ -425,16 +418,16 @@ Based on this tool result, please continue with your analysis and provide the fi
             if not available_nodes:
                 print("No nodes available for workflow creation")
                 return self._create_fallback_workflow(user_request, keywords)
-            
+
             # 2. ANALYZE USER REQUEST TO DETERMINE NEEDED CAPABILITIES
             required_capabilities = self._analyze_required_capabilities(user_request)
-            
+
             # 3. INTELLIGENTLY SELECT NODES THAT MATCH USER NEEDS
             selected_nodes = self._select_optimal_nodes(available_nodes, required_capabilities, user_request)
-            
+
             # 4. DETERMINE OPTIMAL NODE SEQUENCE
             node_sequence = self._determine_node_sequence(selected_nodes, user_request)
-            
+
             # 5. CREATE WORKFLOW WITH INTELLIGENT ASSEMBLY
             workflow = {
                 "name": self._generate_workflow_name(user_request),
@@ -444,13 +437,13 @@ Based on this tool result, please continue with your analysis and provide the fi
                 "user_request": user_request,
                 "steps": []
             }
-            
+
             # 6. BUILD WORKFLOW STEPS DYNAMICALLY
             for i, node_info in enumerate(node_sequence):
                 # Add node step
                 node_step = self._create_node_step(node_info, user_request, keywords, i)
                 workflow["steps"].append(node_step)
-                
+
                 # Add assembly step if not the last node
                 if i < len(node_sequence) - 1:
                     next_node = node_sequence[i + 1]
@@ -459,7 +452,7 @@ Based on this tool result, please continue with your analysis and provide the fi
                     )
                     if assembly_step:
                         workflow["steps"].append(assembly_step)
-            
+
             # 7. VALIDATE AND RETURN
             import json
             try:
@@ -468,19 +461,19 @@ Based on this tool result, please continue with your analysis and provide the fi
             except (TypeError, ValueError) as e:
                 print(f"JSON validation error: {e}")
                 return self._create_fallback_workflow(user_request, keywords)
-            
+
         except Exception as e:
             print(f"Error creating workflow: {e}")
             return self._create_fallback_workflow(user_request, keywords)
-    
+
     def _analyze_user_requirements(self, user_request: str) -> Dict[str, Any]:
         """Intelligently analyze ANY user request to determine workflow requirements"""
         request_lower = user_request.lower()
-        
+
         # Extract ALL keywords and concepts from the request
         import re
         words = re.findall(r'\b\w+\b', request_lower)
-        
+
         # Dynamic analysis based on content
         analysis = {
             "workflow_name": self._generate_workflow_name(user_request),
@@ -492,29 +485,29 @@ Based on this tool result, please continue with your analysis and provide the fi
             "keyword_filters": self._extract_all_relevant_keywords(user_request),
             "output_format": self._determine_output_format(user_request)
         }
-        
+
         return analysis
-    
+
     def _generate_workflow_name(self, request: str) -> str:
         """Generate intelligent workflow name from ANY request"""
         request_lower = request.lower()
-        
+
         # Extract main action verbs and nouns
         action_words = ["monitor", "track", "analyze", "summarize", "collect", "process", "generate", "create"]
         subject_words = ["news", "articles", "data", "content", "information", "reports", "summaries"]
-        
+
         found_actions = [word for word in action_words if word in request_lower]
         found_subjects = [word for word in subject_words if word in request_lower]
-        
+
         if found_actions and found_subjects:
             return f"AI {found_actions[0].title()} {found_subjects[0].title()} Workflow"
         else:
             return "Custom AI Automation Workflow"
-    
+
     def _determine_article_count(self, request: str) -> int:
         """Intelligently determine how many articles to process"""
         request_lower = request.lower()
-        
+
         # Look for quantity indicators
         if any(word in request_lower for word in ["few", "couple", "2", "3"]):
             return 3
@@ -524,11 +517,11 @@ Based on this tool result, please continue with your analysis and provide the fi
             return 15
         else:
             return 5  # Default
-    
+
     def _determine_time_period(self, request: str) -> str:
         """Intelligently determine time period from request"""
         request_lower = request.lower()
-        
+
         if any(word in request_lower for word in ["today", "recent", "latest", "current"]):
             return "Last 24 hours"
         elif any(word in request_lower for word in ["week", "weekly", "7 days"]):
@@ -537,20 +530,20 @@ Based on this tool result, please continue with your analysis and provide the fi
             return "Last 30 days"
         else:
             return "Last 24 hours"  # Default
-    
+
     def _generate_selection_criteria(self, request: str) -> str:
         """Generate intelligent selection criteria for ANY request"""
         keywords = self._extract_all_relevant_keywords(request)
-        
+
         if len(keywords) > 0:
             return f"Select articles most relevant to: {', '.join(keywords[:3])}"
         else:
             return "Select the most relevant and high-quality articles"
-    
+
     def _generate_processing_instructions(self, request: str) -> str:
         """Generate processing instructions based on user intent"""
         request_lower = request.lower()
-        
+
         if any(word in request_lower for word in ["summary", "summarize", "brief"]):
             return "Create concise, informative summaries highlighting key points"
         elif any(word in request_lower for word in ["analysis", "analyze", "insights"]):
@@ -561,39 +554,39 @@ Based on this tool result, please continue with your analysis and provide the fi
             return "Conduct thorough research analysis and compile findings"
         else:
             return "Process content according to user requirements and extract valuable information"
-    
+
     def _extract_all_relevant_keywords(self, request: str) -> List[str]:
         """Extract ALL relevant keywords from ANY request"""
         request_lower = request.lower()
         keywords = []
-        
+
         # Technology keywords
         tech_keywords = ["AI", "artificial intelligence", "machine learning", "technology", "tech", "digital", "automation", "robotics", "data science"]
         keywords.extend([kw for kw in tech_keywords if kw.lower() in request_lower])
-        
+
         # Industry keywords
         industry_keywords = ["healthcare", "finance", "education", "retail", "manufacturing", "automotive", "energy", "agriculture"]
         keywords.extend([kw for kw in industry_keywords if kw.lower() in request_lower])
-        
+
         # Business keywords
         business_keywords = ["startup", "funding", "investment", "company", "business", "enterprise", "innovation", "market"]
         keywords.extend([kw for kw in business_keywords if kw.lower() in request_lower])
-        
+
         # Extract any quoted phrases or specific terms
         import re
         quoted_terms = re.findall(r'"([^"]*)"', request)
         keywords.extend(quoted_terms)
-        
+
         # If no specific keywords found, use general terms
         if not keywords:
             keywords = ["technology", "innovation", "business"]
-        
+
         return list(set(keywords))  # Remove duplicates
-    
+
     def _determine_output_format(self, request: str) -> str:
         """Determine desired output format"""
         request_lower = request.lower()
-        
+
         if any(word in request_lower for word in ["json", "structured", "data"]):
             return "structured_json"
         elif any(word in request_lower for word in ["markdown", "formatted"]):
@@ -602,7 +595,7 @@ Based on this tool result, please continue with your analysis and provide the fi
             return "plain_text"
         else:
             return "formatted_summary"
-    
+
     def _discover_available_nodes(self) -> List[Dict[str, Any]]:
         """Dynamically discover all available nodes and their capabilities"""
         try:
@@ -612,18 +605,18 @@ Based on this tool result, please continue with your analysis and provide the fi
         except Exception as e:
             print(f"Error discovering nodes: {e}")
             return []
-    
+
     def _analyze_required_capabilities(self, user_request: str) -> Dict[str, Any]:
         """Analyze user request to determine what capabilities are needed"""
         request_lower = user_request.lower()
-        
+
         capabilities = {
             "data_sources": [],
             "processing_types": [],
             "output_formats": [],
             "data_transformations": []
         }
-        
+
         # Detect data source needs
         if any(word in request_lower for word in ["news", "articles", "scrape", "web", "website"]):
             capabilities["data_sources"].append("web_scraping")
@@ -633,7 +626,7 @@ Based on this tool result, please continue with your analysis and provide the fi
             capabilities["data_sources"].append("database")
         if any(word in request_lower for word in ["api", "rest", "http"]):
             capabilities["data_sources"].append("api")
-        
+
         # Detect processing needs
         if any(word in request_lower for word in ["analyze", "process", "ai", "llm", "summary"]):
             capabilities["processing_types"].append("ai_processing")
@@ -641,44 +634,44 @@ Based on this tool result, please continue with your analysis and provide the fi
             capabilities["processing_types"].append("data_transformation")
         if any(word in request_lower for word in ["filter", "select", "choose"]):
             capabilities["processing_types"].append("data_filtering")
-        
+
         return capabilities
-    
+
     def _select_optimal_nodes(self, available_nodes: List[Dict], capabilities: Dict, user_request: str) -> List[Dict]:
         """Intelligently select which nodes to use based on capabilities needed"""
         selected_nodes = []
         request_lower = user_request.lower()
-        
+
         # Match nodes to required capabilities
         for node in available_nodes:
             node_name = node.get("node_name", "")
             node_desc = node.get("description", "").lower()
-            
+
             # Smart matching based on node purpose and user needs
             should_include = False
-            
+
             # Data source matching
             if "data_sources" in capabilities:
                 if "web_scraping" in capabilities["data_sources"] and "scraper" in node_name:
                     should_include = True
                 if "google_news" in capabilities["data_sources"] and "google" in node_name:
                     should_include = True
-            
+
             # Processing matching
             if "processing_types" in capabilities:
                 if "ai_processing" in capabilities["processing_types"] and any(
                     word in node_desc for word in ["ai", "process", "llm", "openrouter"]
                 ):
                     should_include = True
-            
+
             # Keyword matching
             for keyword in self._extract_all_relevant_keywords(user_request):
                 if keyword.lower() in node_desc or keyword.lower() in node_name:
                     should_include = True
-            
+
             if should_include:
                 selected_nodes.append(node)
-        
+
         # If no nodes selected, try to use any available nodes intelligently
         if not selected_nodes and available_nodes:
             # Use first available data source node
@@ -686,49 +679,49 @@ Based on this tool result, please continue with your analysis and provide the fi
                 if any(word in node.get("node_name", "") for word in ["scraper", "source", "fetch"]):
                     selected_nodes.append(node)
                     break
-            
+
             # Use first available processing node
             for node in available_nodes:
                 if any(word in node.get("description", "").lower() for word in ["process", "ai", "transform"]):
                     selected_nodes.append(node)
                     break
-        
+
         return selected_nodes
-    
+
     def _determine_node_sequence(self, selected_nodes: List[Dict], user_request: str) -> List[Dict]:
         """Determine the optimal sequence of nodes to achieve user's goal"""
         if not selected_nodes:
             return []
-        
+
         # Smart ordering based on typical data flow patterns
         ordered_nodes = []
-        
+
         # 1. Data source nodes first (scrapers, fetchers)
         source_nodes = [n for n in selected_nodes if any(
             word in n.get("node_name", "") for word in ["scraper", "fetch", "source", "google"]
         )]
         ordered_nodes.extend(source_nodes)
-        
+
         # 2. Processing nodes next (transformers, processors)  
         processing_nodes = [n for n in selected_nodes if any(
             word in n.get("description", "").lower() for word in ["process", "transform", "ai"]
         ) and n not in ordered_nodes]
         ordered_nodes.extend(processing_nodes)
-        
+
         # 3. Any remaining nodes
         remaining_nodes = [n for n in selected_nodes if n not in ordered_nodes]
         ordered_nodes.extend(remaining_nodes)
-        
+
         return ordered_nodes
-    
+
     def _create_node_step(self, node_info: Dict, user_request: str, keywords: List[str], step_index: int) -> Dict[str, Any]:
         """Create a node step with intelligent input customization"""
         node_name = node_info.get("node_name", "")
         input_schema = node_info.get("input_schema", {})
-        
+
         # Build inputs intelligently based on node type and user request
         inputs = {}
-        
+
         # Handle required inputs
         required_fields = input_schema.get("required", [])
         for field in required_fields:
@@ -738,28 +731,28 @@ Based on this tool result, please continue with your analysis and provide the fi
             else:
                 # Later nodes - use variable substitution from previous steps
                 inputs[field] = f"{{{{step_{step_index-1}.{self._guess_output_field(field)}}}}}"
-        
+
         # Handle optional inputs that might be useful
         optional_fields = input_schema.get("optional", [])
         for field in optional_fields:
             if self._should_include_optional_field(field, user_request):
                 inputs[field] = self._generate_input_value(field, user_request, keywords, node_info)
-        
+
         return {
             "node": node_name,
             "inputs": inputs
         }
-    
+
     def _create_intelligent_assembly_step(self, current_node: Dict, next_node: Dict, user_request: str, step_index: int) -> Optional[Dict[str, Any]]:
         """Create intelligent assembly step between nodes"""
         current_outputs = current_node.get("output_schema", [])
         next_inputs = next_node.get("input_schema", {}).get("required", [])
-        
+
         if not current_outputs or not next_inputs:
             return None
-        
+
         assembly_config = {}
-        
+
         # Create intelligent mappings
         for next_input in next_inputs:
             best_output = self._find_best_output_match(next_input, current_outputs, user_request)
@@ -771,7 +764,7 @@ Based on this tool result, please continue with your analysis and provide the fi
                     "fallback_strategy": "try_alternatives",
                     "quality_check": True
                 }
-        
+
         if assembly_config:
             return {
                 "assembly": assembly_config,
@@ -779,13 +772,13 @@ Based on this tool result, please continue with your analysis and provide the fi
                 "name": f"intelligent_assembly_{step_index}",
                 "description": f"🤖 AI ASSEMBLY: Smart data transformation for {user_request[:50]}..."
             }
-        
+
         return None
-    
+
     def _generate_input_value(self, field_name: str, user_request: str, keywords: List[str], node_info: Dict) -> Any:
         """Generate intelligent input values based on field name and context"""
         field_lower = field_name.lower()
-        
+
         # API keys and tokens
         if "api" in field_lower and "key" in field_lower:
             if "openrouter" in field_lower:
@@ -794,53 +787,53 @@ Based on this tool result, please continue with your analysis and provide the fi
                 return "your-apify-token-here"
             else:
                 return "your-api-key-here"
-        
+
         # Keywords
         if "keyword" in field_lower:
             return keywords[:5] if keywords else ["technology", "innovation"]
-        
+
         # URLs
         if "url" in field_lower:
             return "{{previous_step.url}}"
-        
+
         # Counts and limits
         if any(word in field_lower for word in ["max", "limit", "count"]):
             if "news" in user_request.lower():
                 return 5
             return 10
-        
+
         # Time periods
         if "time" in field_lower or "period" in field_lower:
             if "recent" in user_request.lower():
                 return "Last 24 hours"
             return "Last 7 days"
-        
+
         # Boolean values
         if "headless" in field_lower:
             return True
-        
+
         # Default string value
-        return f"auto-generated-{field_name}"
-    
+return f"auto-generated-{field_name}"
+
     def _should_include_optional_field(self, field_name: str, user_request: str) -> bool:
         """Determine if an optional field should be included"""
         field_lower = field_name.lower()
         request_lower = user_request.lower()
-        
+
         # Include fields that seem relevant to the request
         if any(word in request_lower for word in field_lower.split("_")):
             return True
-        
+
         # Include common useful fields
         if field_lower in ["headless", "extract_descriptions", "output_format"]:
             return True
-        
+
         return False
-    
+
     def _guess_output_field(self, input_field: str) -> str:
         """Guess likely output field name for variable substitution"""
         field_lower = input_field.lower()
-        
+
         if "url" in field_lower:
             return "url"
         elif "text" in field_lower:
@@ -851,32 +844,32 @@ Based on this tool result, please continue with your analysis and provide the fi
             return "data"
         else:
             return "output"
-    
+
     def _find_best_output_match(self, input_field: str, available_outputs: List[str], user_request: str) -> Optional[str]:
         """Find the best matching output field for an input field"""
         input_lower = input_field.lower()
-        
+
         # Direct name matching
         for output in available_outputs:
             if input_lower == output.lower():
                 return output
-        
+
         # Semantic matching
         for output in available_outputs:
             output_lower = output.lower()
             if any(word in output_lower for word in input_lower.split("_")):
                 return output
-        
+
         # Fallback to first available output
         return available_outputs[0] if available_outputs else None
-    
+
     def improve_workflow(self, workflow_json: str, feedback: str) -> Dict[str, Any]:
         """Improve an existing workflow based on feedback"""
         try:
             system_message = """
 You have created this workflow:
 """
-            
+
             user_message = f"""
 Workflow: {workflow_json}
 
@@ -891,21 +884,21 @@ Please improve the workflow based on the feedback. Use your tools to:
 
 Focus on making the workflow more intelligent and efficient based on the feedback.
 """
-            
+
             messages = [
                 SystemMessage(content=system_message),
                 HumanMessage(content=user_message)
             ]
-            
+
             initial_response = self.llm.invoke(messages)
             final_response = self._process_agent_response(initial_response.content)
-            
+
             return {
                 "success": True,
                 "response": final_response,
                 "conversation_history": self.conversation_history
             }
-        
+
         except Exception as e:
             return {
                 "success": False,
@@ -913,14 +906,14 @@ Focus on making the workflow more intelligent and efficient based on the feedbac
                 "response": f"Failed to improve workflow: {str(e)}",
                 "conversation_history": self.conversation_history
             }
-    
+
     def explain_workflow(self, workflow_json: str) -> Dict[str, Any]:
         """Explain how a workflow works"""
         try:
             system_message = """
 Please explain this Orchestra workflow in detail:
 """
-            
+
             user_message = f"""
 Workflow to explain: {workflow_json}
 
@@ -933,20 +926,20 @@ Use your node discovery tool to understand what each node does, then explain:
 
 Make it clear and understandable for both technical and non-technical users.
 """
-            
+
             messages = [
                 SystemMessage(content=system_message),
                 HumanMessage(content=user_message)
             ]
-            
+
             initial_response = self.llm.invoke(messages)
             final_response = self._process_agent_response(initial_response.content)
-            
+
             return {
                 "success": True,
                 "response": final_response
             }
-        
+
         except Exception as e:
             return {
                 "success": False,
