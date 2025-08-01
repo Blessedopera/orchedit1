@@ -156,15 +156,16 @@ class OrchestraGlueRunner:
         
         elif node_name == "article-page-scraper":
             article_text = output.get("article_text", "")
-            if not article_text or len(article_text.strip()) < 100:
+            if not article_text or (isinstance(article_text, str) and len(article_text.strip()) < 100):
                 validation["is_valid"] = False
-                validation["issues"].append(f"Insufficient article content: {len(article_text)} characters")
+                article_length = len(article_text) if article_text else 0
+                validation["issues"].append(f"Insufficient article content: {article_length} characters")
                 validation["retry_recommended"] = True
                 validation["alternative_strategy"] = "try_different_article_url"
         
         elif node_name == "article-processor":
             summary = output.get("summary", "")
-            if not summary or len(summary.strip()) < 50:
+            if not summary or (isinstance(summary, str) and len(summary.strip()) < 50):
                 validation["is_valid"] = False
                 validation["issues"].append("Summary too short or missing")
                 validation["retry_recommended"] = True
