@@ -19,7 +19,7 @@ sys.path.insert(0, str(backend_dir))
 sys.path.insert(0, str(agents_dir))
 
 from glue_runner import OrchestraGlueRunner
-from workflow_composer import WorkflowComposerAgent
+from orchestra.agents.workflow_composer import WorkflowComposerAgent
 from workflow_memory import WorkflowMemory
 from workflow_templates import WorkflowTemplates
 

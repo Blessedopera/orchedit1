@@ -332,7 +332,7 @@ Based on this tool result, please continue with your analysis and provide the fi
 
             if not source_config_path.exists():
                 return f"Source node '{source_node}' config not found"
-            
+
             if not target_config_path.exists():
                 return f"Target node '{target_node}' config not found"
 
