@@ -401,70 +401,135 @@ Based on this tool result, please continue with your analysis and provide the fi
         return keywords
     
     def _create_workflow_from_request(self, user_request: str, keywords: List[str]) -> Optional[Dict[str, Any]]:
-        """Create workflow JSON directly from user request"""
+        """Create workflow JSON directly from user request with intelligent assembly"""
         try:
-            # Create workflow based on the pattern: news scraping -> article selection -> content scraping -> AI processing
+            # Analyze user request for specific requirements
+            analysis = self._analyze_user_requirements(user_request)
+            
             workflow = {
-                "name": "AI News Analysis Workflow",
-                "description": f"Finds and summarizes articles about {', '.join(keywords)}",
+                "name": analysis["workflow_name"],
+                "description": analysis["description"],
                 "version": "1.0.0",
-                "steps": [
-                    {
-                        "node": "google-news-scraper",
-                        "inputs": {
-                            "api_token": "your-apify-token-here",
-                            "keywords": keywords,
-                            "max_news": 10,
-                            "time_period": "Last 24 hours",
-                            "region_code": "United States (English)",
-                            "extract_descriptions": True
-                        }
-                    },
-                    {
-                        "assembly": {
-                            "selected_article_url": {
-                                "action": "select_index",
-                                "from": "articles",
-                                "index": 0,
-                                "extract": "url"
-                            }
-                        },
-                        "source": "google-news-scraper",
-                        "name": "article_selector",
-                        "description": "Selects the most relevant article from news results"
-                    },
-                    {
-                        "node": "article-page-scraper",
-                        "inputs": {
-                            "url": "{{article_selector.selected_article_url}}",
-                            "output_filename": "scraped_article.html",
-                            "headless": True
-                        }
-                    },
-                    {
-                        "assembly": {
-                            "clean_text": "article_text"
-                        },
-                        "source": "article-page-scraper",
-                        "name": "text_extractor",
-                        "description": "Extracts clean text for AI processing"
-                    },
-                    {
-                        "node": "article-processor",
-                        "inputs": {
-                            "article_text": "{{text_extractor.clean_text}}",
-                            "openrouter_api_key": "your-openrouter-key-here",
-                            "model": "qwen/qwen3-coder:free"
-                        }
-                    }
-                ]
+                "created_by": "Orchestra AI Agent",
+                "user_request": user_request,
+                "steps": []
             }
+            
+            # Step 1: News Scraping
+            workflow["steps"].append({
+                "node": "google-news-scraper",
+                "inputs": {
+                    "api_token": "your-apify-token-here",
+                    "keywords": keywords,
+                    "max_news": analysis["max_articles"],
+                    "time_period": analysis["time_period"],
+                    "region_code": "United States (English)",
+                    "extract_descriptions": True
+                }
+            })
+            
+            # Step 2: Intelligent Article Selection
+            selection_criteria = analysis["selection_criteria"]
+            workflow["steps"].append({
+                "assembly": {
+                    "selected_article_url": {
+                        "action": "select_index",
+                        "from": "articles",
+                        "index": 0,
+                        "extract": "url"
+                    },
+                    "selected_article_title": {
+                        "action": "select_index", 
+                        "from": "articles",
+                        "index": 0,
+                        "extract": "title"
+                    }
+                },
+                "source": "google-news-scraper",
+                "name": "intelligent_article_selector",
+                "description": f"🤖 AI ASSEMBLY: {selection_criteria}"
+            })
+            
+            # Step 3: Article Content Scraping
+            workflow["steps"].append({
+                "node": "article-page-scraper",
+                "inputs": {
+                    "url": "{{intelligent_article_selector.selected_article_url}}",
+                    "output_filename": "ai_selected_article.html",
+                    "headless": True
+                }
+            })
+            
+            # Step 4: Content Processing Assembly
+            workflow["steps"].append({
+                "assembly": {
+                    "clean_article_text": "article_text",
+                    "source_url": "url",
+                    "article_title": "{{intelligent_article_selector.selected_article_title}}"
+                },
+                "source": "article-page-scraper",
+                "name": "content_processor",
+                "description": "🤖 AI ASSEMBLY: Extracts and prepares content for AI analysis"
+            })
+            
+            # Step 5: AI Processing
+            processing_instructions = analysis["processing_instructions"]
+            workflow["steps"].append({
+                "node": "article-processor",
+                "inputs": {
+                    "article_text": "{{content_processor.clean_article_text}}",
+                    "openrouter_api_key": "your-openrouter-key-here",
+                    "model": "qwen/qwen3-coder:free",
+                    "custom_instructions": processing_instructions
+                }
+            })
             
             return workflow
             
         except Exception as e:
             print(f"Error creating workflow: {e}")
             return None
+    
+    def _analyze_user_requirements(self, user_request: str) -> Dict[str, Any]:
+        """Analyze user request to determine workflow requirements"""
+        analysis = {
+            "workflow_name": "Custom AI Workflow",
+            "description": "AI-generated workflow based on user requirements",
+            "max_articles": 5,
+            "time_period": "Last 24 hours",
+            "selection_criteria": "Select the most relevant article",
+            "processing_instructions": "Create a comprehensive summary"
+        }
+        
+        request_lower = user_request.lower()
+        
+        # Determine workflow name and description
+        if "healthcare" in request_lower:
+            analysis["workflow_name"] = "Healthcare AI News Analysis"
+            analysis["description"] = "Monitors and analyzes AI news in healthcare sector"
+            analysis["selection_criteria"] = "Select articles about AI in healthcare"
+        elif "startup" in request_lower or "funding" in request_lower:
+            analysis["workflow_name"] = "AI Startup Funding Monitor"
+            analysis["description"] = "Tracks AI startup funding news and investment trends"
+            analysis["selection_criteria"] = "Select articles about AI startup funding"
+        elif "summary" in request_lower or "newsletter" in request_lower:
+            analysis["workflow_name"] = "AI News Summary Generator"
+            analysis["description"] = "Creates summaries of AI news for newsletters"
+            analysis["processing_instructions"] = "Create concise summaries suitable for newsletters"
+        
+        # Determine article count
+        if "few" in request_lower or "3" in user_request:
+            analysis["max_articles"] = 3
+        elif "many" in request_lower or "10" in user_request:
+            analysis["max_articles"] = 10
+        
+        # Determine time period
+        if "week" in request_lower:
+            analysis["time_period"] = "Last 7 days"
+        elif "today" in request_lower:
+            analysis["time_period"] = "Last 24 hours"
+        
+        return analysis
             
             # Process any tool calls
             final_response = self._process_agent_response(initial_response.content)

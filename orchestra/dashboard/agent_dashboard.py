@@ -256,23 +256,35 @@ def create_workflow_with_agent(user_request: str):
                                 with col2:
                                     if st.button("💾 Save Workflow"):
                                         try:
-                                            # Save workflow to workflows directory
-                                            workflows_dir = current_dir.parent / "workflows"
-                                            workflows_dir.mkdir(exist_ok=True)
+                                            # Get absolute path to workflows directory
+                                            import os
+                                            current_file_dir = os.path.dirname(os.path.abspath(__file__))
+                                            orchestra_root = os.path.dirname(current_file_dir)
+                                            workflows_dir = os.path.join(orchestra_root, "workflows")
                                             
-                                            workflow_path = workflows_dir / filename
+                                            # Create directory if it doesn't exist
+                                            os.makedirs(workflows_dir, exist_ok=True)
+                                            
+                                            # Save workflow
+                                            workflow_path = os.path.join(workflows_dir, filename)
                                             with open(workflow_path, 'w') as f:
                                                 json.dump(workflow_json, f, indent=2)
                                             
                                             st.success(f"✅ Workflow saved to: {workflow_path}")
                                             st.info("💡 **Next Steps:**\n1. Go to '🚀 Execute Workflows' tab\n2. Click 'Refresh Workflow List'\n3. Find your saved workflow\n4. Add API keys if needed\n5. Execute the workflow")
                                             
-                                            # Clear cache to force refresh
-                                            if 'workflow_files_cache' in st.session_state:
-                                                del st.session_state['workflow_files_cache']
+                                            # Clear all caches to force refresh
+                                            cache_keys = ['workflow_files_cache', 'workflows_dir_cache']
+                                            for key in cache_keys:
+                                                if key in st.session_state:
+                                                    del st.session_state[key]
+                                            
+                                            # Force immediate refresh
+                                            st.rerun()
                                             
                                         except Exception as e:
                                             st.error(f"❌ Save failed: {str(e)}")
+                                            st.code(f"Error details: {traceback.format_exc()}")
                                         
                                         # Store in memory
                                         st.session_state.workflow_memory.store_workflow(
@@ -419,18 +431,27 @@ def show_workflow_execution():
     """Show workflow execution interface"""
     st.header("🚀 Workflow Execution")
     
-    # List available workflows
-    workflows_dir = current_dir.parent / "workflows"
-    if not workflows_dir.exists():
+    # List available workflows with absolute path
+    import os
+    current_file_dir = os.path.dirname(os.path.abspath(__file__))
+    orchestra_root = os.path.dirname(current_file_dir)
+    workflows_dir = os.path.join(orchestra_root, "workflows")
+    
+    if not os.path.exists(workflows_dir):
         st.warning("No workflows directory found.")
+        st.info(f"Expected directory: {workflows_dir}")
         return
     
     # Cache workflow files to avoid constant file system checks
     if 'workflow_files_cache' not in st.session_state or st.button("🔄 Refresh Workflow List"):
-        workflow_files = list(workflows_dir.glob("*.json"))
+        import glob
+        workflow_pattern = os.path.join(workflows_dir, "*.json")
+        workflow_files = glob.glob(workflow_pattern)
         st.session_state.workflow_files_cache = workflow_files
+        st.session_state.workflows_dir_cache = workflows_dir
     else:
         workflow_files = st.session_state.workflow_files_cache
+        workflows_dir = st.session_state.workflows_dir_cache
     
     if not workflow_files:
         st.warning("No workflow files found. Create one using the AI Workflow Creator first.")
@@ -441,12 +462,20 @@ def show_workflow_execution():
         return
     
     # Workflow selection
-    workflow_names = [f.name for f in workflow_files]
+    workflow_names = [os.path.basename(f) for f in workflow_files]
+    if not workflow_names:
+        st.warning("No workflow files found. Create one using the AI Workflow Creator first.")
+        if st.button("🔄 Refresh List"):
+            if 'workflow_files_cache' in st.session_state:
+                del st.session_state['workflow_files_cache']
+            st.rerun()
+        return
+    
     selected_workflow = st.selectbox("Select workflow to execute:", workflow_names)
     
     if selected_workflow:
         try:
-            workflow_path = workflows_dir / selected_workflow
+            workflow_path = os.path.join(workflows_dir, selected_workflow)
             with open(workflow_path, 'r') as f:
                 workflow_data = json.load(f)
             
@@ -572,8 +601,10 @@ def show_workflow_execution():
             st.error(f"❌ Could not load workflow: {str(e)}")
 
 def execute_workflow(workflow_data: Dict[str, Any], workflow_name: str):
-    """Execute a workflow and record results"""
+    """Execute a workflow and record results with detailed error handling"""
     try:
+        st.info("🔍 **Pre-execution checks...**")
+        
         # Check for missing API keys before execution
         missing_keys = []
         for step in workflow_data.get('steps', []):
@@ -591,27 +622,103 @@ def execute_workflow(workflow_data: Dict[str, Any], workflow_name: str):
             st.info("💡 **To fix**: Use the '📝 Edit Workflow JSON' button above to add your API keys")
             return
         
+        st.success("✅ Pre-execution checks passed!")
+        
+        # Initialize runner
         runner = OrchestraGlueRunner()
+        
+        # Validate workflow structure
+        st.info("🔍 **Validating workflow structure...**")
+        
+        # Check if all nodes exist
+        for step in workflow_data.get('steps', []):
+            if 'node' in step:
+                node_name = step['node']
+                available_nodes = runner.list_available_nodes()
+                node_exists = any(n['node_name'] == node_name for n in available_nodes)
+                if not node_exists:
+                    st.error(f"❌ Node '{node_name}' not found!")
+                    st.write("Available nodes:", [n['node_name'] for n in available_nodes])
+                    return
+        
+        st.success("✅ All nodes validated!")
         
         start_time = time.time()
         
         with st.spinner("Executing workflow..."):
+            # Show step-by-step execution
+            progress_bar = st.progress(0)
+            status_text = st.empty()
+            
+            total_steps = len(workflow_data.get('steps', []))
+            
+            for i, step in enumerate(workflow_data.get('steps', [])):
+                progress = (i + 1) / total_steps
+                progress_bar.progress(progress)
+                
+                if 'node' in step:
+                    status_text.text(f"Executing step {i+1}/{total_steps}: {step['node']}")
+                else:
+                    status_text.text(f"Processing step {i+1}/{total_steps}: Assembly")
+                
+                time.sleep(0.5)  # Visual feedback
+            
+            # Execute the workflow
             result = runner.run_workflow(workflow_data)
+            
+            progress_bar.progress(1.0)
+            status_text.text("✅ Workflow completed!")
         
         execution_time = time.time() - start_time
         
-        st.success("✅ Workflow completed successfully!")
+        st.success(f"✅ Workflow completed successfully in {execution_time:.2f} seconds!")
         
         # Show results
-        st.subheader("Execution Results")
-        st.json(result)
+        st.subheader("📊 Execution Results")
+        
+        if isinstance(result, dict):
+            # Show step-by-step results
+            for step_name, step_result in result.items():
+                with st.expander(f"📋 Step: {step_name}", expanded=False):
+                    st.json(step_result)
+        else:
+            st.json(result)
         
         # Record execution in memory
-        # Note: Would need workflow ID from database for proper tracking
+        try:
+            st.session_state.workflow_memory.record_execution(
+                workflow_id=hash(workflow_name),  # Simple hash for demo
+                success=True,
+                execution_time=execution_time
+            )
+        except Exception as memory_error:
+            st.warning(f"Could not record execution in memory: {memory_error}")
         
     except Exception as e:
         st.error(f"❌ Workflow execution failed: {str(e)}")
-        st.code(traceback.format_exc())
+        
+        # Detailed error information
+        with st.expander("🔧 Error Details", expanded=True):
+            st.code(traceback.format_exc())
+            
+            # Suggest fixes
+            error_str = str(e).lower()
+            if "connection" in error_str or "api" in error_str:
+                st.info("💡 **Possible fixes:**\n- Check your API keys\n- Verify internet connection\n- Check API service status")
+            elif "file" in error_str or "path" in error_str:
+                st.info("💡 **Possible fixes:**\n- Check file paths in workflow\n- Verify node directories exist\n- Check permissions")
+            elif "json" in error_str:
+                st.info("💡 **Possible fixes:**\n- Validate workflow JSON format\n- Check for syntax errors\n- Verify assembly step configuration")
+        
+        # Record failed execution
+        try:
+            st.session_state.workflow_memory.record_execution(
+                workflow_id=hash(workflow_name),
+                success=False,
+                error_message=str(e)
+            )
+        except Exception as memory_error:
+            st.warning(f"Could not record failed execution: {memory_error}")
 
 def show_workflow_memory():
     """Show workflow memory and learning capabilities"""

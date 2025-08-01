@@ -1,0 +1,41 @@
+
+{
+  "name": "Test AI Creation Workflow",
+  "description": "Simple test workflow to verify AI agent creation and execution pipeline",
+  "version": "1.0.0",
+  "created_by": "Debug Test",
+  "steps": [
+    {
+      "node": "google-news-scraper",
+      "inputs": {
+        "api_token": "your-apify-token-here",
+        "keywords": ["AI", "technology"],
+        "max_news": 3,
+        "time_period": "Last 24 hours",
+        "region_code": "United States (English)",
+        "extract_descriptions": true
+      }
+    },
+    {
+      "assembly": {
+        "first_article_url": {
+          "action": "select_index",
+          "from": "articles",
+          "index": 0,
+          "extract": "url"
+        }
+      },
+      "source": "google-news-scraper",
+      "name": "article_selector",
+      "description": "Select the first article for testing"
+    },
+    {
+      "node": "article-page-scraper",
+      "inputs": {
+        "url": "{{article_selector.first_article_url}}",
+        "output_filename": "test_article.html",
+        "headless": true
+      }
+    }
+  ]
+}
