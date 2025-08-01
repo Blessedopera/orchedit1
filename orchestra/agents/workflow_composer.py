@@ -418,131 +418,60 @@ Based on this tool result, please continue with your analysis and provide the fi
         return self._extract_all_relevant_keywords(user_request)
     
     def _create_workflow_from_request(self, user_request: str, keywords: List[str]) -> Optional[Dict[str, Any]]:
-        """Create workflow JSON directly from user request with intelligent assembly"""
+        """Create workflow JSON from ANY user request using ANY available nodes"""
         try:
-            # Analyze user request for specific requirements
-            analysis = self._analyze_user_requirements(user_request)
+            # 1. DISCOVER ALL AVAILABLE NODES DYNAMICALLY
+            available_nodes = self._discover_available_nodes()
+            if not available_nodes:
+                print("No nodes available for workflow creation")
+                return self._create_fallback_workflow(user_request, keywords)
             
+            # 2. ANALYZE USER REQUEST TO DETERMINE NEEDED CAPABILITIES
+            required_capabilities = self._analyze_required_capabilities(user_request)
+            
+            # 3. INTELLIGENTLY SELECT NODES THAT MATCH USER NEEDS
+            selected_nodes = self._select_optimal_nodes(available_nodes, required_capabilities, user_request)
+            
+            # 4. DETERMINE OPTIMAL NODE SEQUENCE
+            node_sequence = self._determine_node_sequence(selected_nodes, user_request)
+            
+            # 5. CREATE WORKFLOW WITH INTELLIGENT ASSEMBLY
             workflow = {
-                "name": analysis["workflow_name"],
-                "description": analysis["description"],
+                "name": self._generate_workflow_name(user_request),
+                "description": f"AI-generated workflow: {user_request}",
                 "version": "1.0.0",
                 "created_by": "Orchestra AI Agent",
                 "user_request": user_request,
                 "steps": []
             }
             
-            # Step 1: News Scraping
-            workflow["steps"].append({
-                "node": "google-news-scraper",
-                "inputs": {
-                    "api_token": "your-apify-token-here",
-                    "keywords": keywords,
-                    "max_news": analysis["max_articles"],
-                    "time_period": analysis["time_period"],
-                    "region_code": "United States (English)",
-                    "extract_descriptions": True
-                }
-            })
+            # 6. BUILD WORKFLOW STEPS DYNAMICALLY
+            for i, node_info in enumerate(node_sequence):
+                # Add node step
+                node_step = self._create_node_step(node_info, user_request, keywords, i)
+                workflow["steps"].append(node_step)
+                
+                # Add assembly step if not the last node
+                if i < len(node_sequence) - 1:
+                    next_node = node_sequence[i + 1]
+                    assembly_step = self._create_intelligent_assembly_step(
+                        node_info, next_node, user_request, i
+                    )
+                    if assembly_step:
+                        workflow["steps"].append(assembly_step)
             
-            # Step 2: Intelligent Article Selection with Error Recovery
-            selection_criteria = analysis["selection_criteria"]
-            workflow["steps"].append({
-                "assembly": {
-                    "selected_article_url": {
-                        "action": "intelligent_select",
-                        "from": "articles",
-                        "criteria": analysis["keyword_filters"],
-                        "fallback_strategy": "try_multiple",
-                        "extract": "url",
-                        "description": selection_criteria
-                    },
-                    "selected_article_title": {
-                        "action": "intelligent_select", 
-                        "from": "articles",
-                        "criteria": analysis["keyword_filters"],
-                        "fallback_strategy": "try_multiple",
-                        "extract": "title",
-                        "description": selection_criteria
-                    },
-                    "backup_urls": {
-                        "action": "extract_all",
-                        "from": "articles",
-                        "extract": "url",
-                        "limit": 5
-                    }
-                },
-                "source": "google-news-scraper",
-                "name": "intelligent_article_selector",
-                "description": f"🤖 AI ASSEMBLY: {selection_criteria} with fallback strategy"
-            })
-            
-            # Step 3: Article Content Scraping
-            workflow["steps"].append({
-                "node": "article-page-scraper",
-                "inputs": {
-                    "url": "{{intelligent_article_selector.selected_article_url}}",
-                    "output_filename": "ai_selected_article.html",
-                    "headless": True
-                }
-            })
-            
-            # Step 4: Content Processing Assembly with Error Recovery
-            workflow["steps"].append({
-                "assembly": {
-                    "clean_article_text": {
-                        "primary": "article_text",
-                        "fallback_action": "try_next_url",
-                        "backup_urls": "{{intelligent_article_selector.backup_urls}}",
-                        "min_content_length": 100,
-                        "error_handling": "auto_retry"
-                    },
-                    "source_url": "url",
-                    "article_title": "{{intelligent_article_selector.selected_article_title}}",
-                    "content_quality_check": {
-                        "action": "validate_content",
-                        "min_words": 50,
-                        "paywall_detection": True,
-                        "retry_on_failure": True
-                    }
-                },
-                "source": "article-page-scraper",
-                "name": "content_processor",
-                "description": "🤖 AI ASSEMBLY: Extracts content with intelligent error recovery and paywall detection"
-            })
-            
-            # Step 5: AI Processing with Enhanced Instructions
-            processing_instructions = analysis["processing_instructions"]
-            workflow["steps"].append({
-                "node": "article-processor",
-                "inputs": {
-                    "article_text": "{{content_processor.clean_article_text}}",
-                    "openrouter_api_key": "your-openrouter-key-here", 
-                    "model": "qwen/qwen3-coder:free",
-                    "custom_instructions": processing_instructions,
-                    "output_format": analysis["output_format"],
-                    "keyword_focus": analysis["keyword_filters"],
-                    "quality_requirements": {
-                        "min_summary_length": 200,
-                        "include_key_points": True,
-                        "highlight_relevance": True
-                    }
-                }
-            })
-            
-            # Validate JSON structure before returning
+            # 7. VALIDATE AND RETURN
             import json
             try:
                 json.dumps(workflow)  # Test if it's valid JSON
                 return workflow
             except (TypeError, ValueError) as e:
                 print(f"JSON validation error: {e}")
-                # Return a simpler fallback workflow if complex one fails
                 return self._create_fallback_workflow(user_request, keywords)
             
         except Exception as e:
             print(f"Error creating workflow: {e}")
-            return None
+            return self._create_fallback_workflow(user_request, keywords)
     
     def _analyze_user_requirements(self, user_request: str) -> Dict[str, Any]:
         """Intelligently analyze ANY user request to determine workflow requirements"""
@@ -673,11 +602,273 @@ Based on this tool result, please continue with your analysis and provide the fi
             return "plain_text"
         else:
             return "formatted_summary"
-            analysis["time_period"] = "Last 7 days"
-        elif "today" in request_lower:
-            analysis["time_period"] = "Last 24 hours"
+    
+    def _discover_available_nodes(self) -> List[Dict[str, Any]]:
+        """Dynamically discover all available nodes and their capabilities"""
+        try:
+            nodes_info_str = self._discover_nodes("")
+            nodes_info = json.loads(nodes_info_str)
+            return nodes_info
+        except Exception as e:
+            print(f"Error discovering nodes: {e}")
+            return []
+    
+    def _analyze_required_capabilities(self, user_request: str) -> Dict[str, Any]:
+        """Analyze user request to determine what capabilities are needed"""
+        request_lower = user_request.lower()
         
-        return analysis
+        capabilities = {
+            "data_sources": [],
+            "processing_types": [],
+            "output_formats": [],
+            "data_transformations": []
+        }
+        
+        # Detect data source needs
+        if any(word in request_lower for word in ["news", "articles", "scrape", "web", "website"]):
+            capabilities["data_sources"].append("web_scraping")
+        if any(word in request_lower for word in ["google", "search", "news"]):
+            capabilities["data_sources"].append("google_news")
+        if any(word in request_lower for word in ["database", "sql", "data"]):
+            capabilities["data_sources"].append("database")
+        if any(word in request_lower for word in ["api", "rest", "http"]):
+            capabilities["data_sources"].append("api")
+        
+        # Detect processing needs
+        if any(word in request_lower for word in ["analyze", "process", "ai", "llm", "summary"]):
+            capabilities["processing_types"].append("ai_processing")
+        if any(word in request_lower for word in ["transform", "convert", "format"]):
+            capabilities["processing_types"].append("data_transformation")
+        if any(word in request_lower for word in ["filter", "select", "choose"]):
+            capabilities["processing_types"].append("data_filtering")
+        
+        return capabilities
+    
+    def _select_optimal_nodes(self, available_nodes: List[Dict], capabilities: Dict, user_request: str) -> List[Dict]:
+        """Intelligently select which nodes to use based on capabilities needed"""
+        selected_nodes = []
+        request_lower = user_request.lower()
+        
+        # Match nodes to required capabilities
+        for node in available_nodes:
+            node_name = node.get("node_name", "")
+            node_desc = node.get("description", "").lower()
+            
+            # Smart matching based on node purpose and user needs
+            should_include = False
+            
+            # Data source matching
+            if "data_sources" in capabilities:
+                if "web_scraping" in capabilities["data_sources"] and "scraper" in node_name:
+                    should_include = True
+                if "google_news" in capabilities["data_sources"] and "google" in node_name:
+                    should_include = True
+            
+            # Processing matching
+            if "processing_types" in capabilities:
+                if "ai_processing" in capabilities["processing_types"] and any(
+                    word in node_desc for word in ["ai", "process", "llm", "openrouter"]
+                ):
+                    should_include = True
+            
+            # Keyword matching
+            for keyword in self._extract_all_relevant_keywords(user_request):
+                if keyword.lower() in node_desc or keyword.lower() in node_name:
+                    should_include = True
+            
+            if should_include:
+                selected_nodes.append(node)
+        
+        # If no nodes selected, try to use any available nodes intelligently
+        if not selected_nodes and available_nodes:
+            # Use first available data source node
+            for node in available_nodes:
+                if any(word in node.get("node_name", "") for word in ["scraper", "source", "fetch"]):
+                    selected_nodes.append(node)
+                    break
+            
+            # Use first available processing node
+            for node in available_nodes:
+                if any(word in node.get("description", "").lower() for word in ["process", "ai", "transform"]):
+                    selected_nodes.append(node)
+                    break
+        
+        return selected_nodes
+    
+    def _determine_node_sequence(self, selected_nodes: List[Dict], user_request: str) -> List[Dict]:
+        """Determine the optimal sequence of nodes to achieve user's goal"""
+        if not selected_nodes:
+            return []
+        
+        # Smart ordering based on typical data flow patterns
+        ordered_nodes = []
+        
+        # 1. Data source nodes first (scrapers, fetchers)
+        source_nodes = [n for n in selected_nodes if any(
+            word in n.get("node_name", "") for word in ["scraper", "fetch", "source", "google"]
+        )]
+        ordered_nodes.extend(source_nodes)
+        
+        # 2. Processing nodes next (transformers, processors)  
+        processing_nodes = [n for n in selected_nodes if any(
+            word in n.get("description", "").lower() for word in ["process", "transform", "ai"]
+        ) and n not in ordered_nodes]
+        ordered_nodes.extend(processing_nodes)
+        
+        # 3. Any remaining nodes
+        remaining_nodes = [n for n in selected_nodes if n not in ordered_nodes]
+        ordered_nodes.extend(remaining_nodes)
+        
+        return ordered_nodes
+    
+    def _create_node_step(self, node_info: Dict, user_request: str, keywords: List[str], step_index: int) -> Dict[str, Any]:
+        """Create a node step with intelligent input customization"""
+        node_name = node_info.get("node_name", "")
+        input_schema = node_info.get("input_schema", {})
+        
+        # Build inputs intelligently based on node type and user request
+        inputs = {}
+        
+        # Handle required inputs
+        required_fields = input_schema.get("required", [])
+        for field in required_fields:
+            if step_index == 0:
+                # First node - use user-derived inputs
+                inputs[field] = self._generate_input_value(field, user_request, keywords, node_info)
+            else:
+                # Later nodes - use variable substitution from previous steps
+                inputs[field] = f"{{{{step_{step_index-1}.{self._guess_output_field(field)}}}}}"
+        
+        # Handle optional inputs that might be useful
+        optional_fields = input_schema.get("optional", [])
+        for field in optional_fields:
+            if self._should_include_optional_field(field, user_request):
+                inputs[field] = self._generate_input_value(field, user_request, keywords, node_info)
+        
+        return {
+            "node": node_name,
+            "inputs": inputs
+        }
+    
+    def _create_intelligent_assembly_step(self, current_node: Dict, next_node: Dict, user_request: str, step_index: int) -> Optional[Dict[str, Any]]:
+        """Create intelligent assembly step between nodes"""
+        current_outputs = current_node.get("output_schema", [])
+        next_inputs = next_node.get("input_schema", {}).get("required", [])
+        
+        if not current_outputs or not next_inputs:
+            return None
+        
+        assembly_config = {}
+        
+        # Create intelligent mappings
+        for next_input in next_inputs:
+            best_output = self._find_best_output_match(next_input, current_outputs, user_request)
+            if best_output:
+                assembly_config[f"mapped_{next_input}"] = {
+                    "action": "intelligent_select" if "select" in user_request.lower() else "extract",
+                    "from": best_output,
+                    "extract": next_input,
+                    "fallback_strategy": "try_alternatives",
+                    "quality_check": True
+                }
+        
+        if assembly_config:
+            return {
+                "assembly": assembly_config,
+                "source": current_node.get("node_name"),
+                "name": f"intelligent_assembly_{step_index}",
+                "description": f"🤖 AI ASSEMBLY: Smart data transformation for {user_request[:50]}..."
+            }
+        
+        return None
+    
+    def _generate_input_value(self, field_name: str, user_request: str, keywords: List[str], node_info: Dict) -> Any:
+        """Generate intelligent input values based on field name and context"""
+        field_lower = field_name.lower()
+        
+        # API keys and tokens
+        if "api" in field_lower and "key" in field_lower:
+            if "openrouter" in field_lower:
+                return "your-openrouter-key-here"
+            elif "apify" in field_lower:
+                return "your-apify-token-here"
+            else:
+                return "your-api-key-here"
+        
+        # Keywords
+        if "keyword" in field_lower:
+            return keywords[:5] if keywords else ["technology", "innovation"]
+        
+        # URLs
+        if "url" in field_lower:
+            return "{{previous_step.url}}"
+        
+        # Counts and limits
+        if any(word in field_lower for word in ["max", "limit", "count"]):
+            if "news" in user_request.lower():
+                return 5
+            return 10
+        
+        # Time periods
+        if "time" in field_lower or "period" in field_lower:
+            if "recent" in user_request.lower():
+                return "Last 24 hours"
+            return "Last 7 days"
+        
+        # Boolean values
+        if "headless" in field_lower:
+            return True
+        
+        # Default string value
+        return f"auto-generated-{field_name}"
+    
+    def _should_include_optional_field(self, field_name: str, user_request: str) -> bool:
+        """Determine if an optional field should be included"""
+        field_lower = field_name.lower()
+        request_lower = user_request.lower()
+        
+        # Include fields that seem relevant to the request
+        if any(word in request_lower for word in field_lower.split("_")):
+            return True
+        
+        # Include common useful fields
+        if field_lower in ["headless", "extract_descriptions", "output_format"]:
+            return True
+        
+        return False
+    
+    def _guess_output_field(self, input_field: str) -> str:
+        """Guess likely output field name for variable substitution"""
+        field_lower = input_field.lower()
+        
+        if "url" in field_lower:
+            return "url"
+        elif "text" in field_lower:
+            return "text"
+        elif "content" in field_lower:
+            return "content"
+        elif "data" in field_lower:
+            return "data"
+        else:
+            return "output"
+    
+    def _find_best_output_match(self, input_field: str, available_outputs: List[str], user_request: str) -> Optional[str]:
+        """Find the best matching output field for an input field"""
+        input_lower = input_field.lower()
+        
+        # Direct name matching
+        for output in available_outputs:
+            if input_lower == output.lower():
+                return output
+        
+        # Semantic matching
+        for output in available_outputs:
+            output_lower = output.lower()
+            if any(word in output_lower for word in input_lower.split("_")):
+                return output
+        
+        # Fallback to first available output
+        return available_outputs[0] if available_outputs else None
     
     def improve_workflow(self, workflow_json: str, feedback: str) -> Dict[str, Any]:
         """Improve an existing workflow based on feedback"""
