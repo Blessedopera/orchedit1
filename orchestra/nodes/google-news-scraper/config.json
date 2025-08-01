@@ -1,0 +1,15 @@
+{
+  "name": "Google News Scraper",
+  "description": "Scrapes Google News articles using Apify API with pay-per-result model",
+  "version": "1.0.0",
+  "input_schema": {
+    "required": ["api_token", "keywords"],
+    "optional": ["max_news", "time_period", "region_code", "decode_urls", "extract_descriptions", "use_proxy"]
+  },
+  "output_schema": ["articles", "total_count", "dataset_id"],
+  "dependencies": ["apify-client"],
+  "language": "python",
+  "type": "scraper",
+  "cost_model": "pay_per_result",
+  "estimated_cost": "$4.00 per 1,000 results"
+}

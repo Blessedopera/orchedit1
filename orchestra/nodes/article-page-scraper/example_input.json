@@ -1,0 +1,6 @@
+{
+  "url": "https://www.webpronews.com/julius-ai-raises-10m-seed-funding-for-ai-data-analysis-platform/",
+  "output_filename": "scraped_article.html",
+  "headless": true,
+  "wait_time": 3000
+}

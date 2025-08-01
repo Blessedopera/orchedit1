@@ -1,0 +1,10 @@
+{
+  "api_token": "your-apify-api-token-here",
+  "keywords": ["AI", "artificial intelligence", "machine learning"],
+  "max_news": 5,
+  "time_period": "Last 24 hours",
+  "region_code": "United States (English)",
+  "decode_urls": false,
+  "extract_descriptions": true,
+  "use_proxy": true
+}

@@ -1,0 +1,14 @@
+{
+  "name": "Article Processor",
+  "description": "Processes articles using OpenRouter API for summarization and rewriting",
+  "version": "1.0.0",
+  "input_schema": {
+    "required": ["openrouter_api_key"],
+    "optional": ["article_text", "html_file", "html_content", "url", "model", "max_tokens", "temperature", "include_rewrite"]
+  },
+  "output_schema": ["original_text", "summary", "rewritten_article", "model_used", "success"],
+  "dependencies": ["requests", "beautifulsoup4", "openai"],
+  "language": "python",
+  "type": "processor",
+  "api_required": "openrouter"
+}
