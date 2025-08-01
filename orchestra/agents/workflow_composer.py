@@ -197,6 +197,48 @@ Based on this tool result, please continue with your analysis and provide the fi
                         if "inputs" not in step:
                             errors.append(f"Step {i+1}: Missing 'inputs' field")
                         
+
+
+    def _create_fallback_workflow(self, user_request: str, keywords: List[str]) -> Dict[str, Any]:
+        """Create a simple, guaranteed-valid workflow as fallback"""
+        return {
+            "name": "Fallback AI Workflow",
+            "description": f"Simple workflow for: {user_request[:50]}...",
+            "version": "1.0.0", 
+            "created_by": "Orchestra AI Agent (Fallback)",
+            "user_request": user_request,
+            "steps": [
+                {
+                    "node": "google-news-scraper",
+                    "inputs": {
+                        "api_token": "your-apify-token-here",
+                        "keywords": keywords[:3],  # Limit to 3 keywords
+                        "max_news": 5,
+                        "time_period": "Last 24 hours",
+                        "region_code": "United States (English)"
+                    }
+                },
+                {
+                    "assembly": {
+                        "selected_url": {
+                            "action": "select_index",
+                            "from": "articles", 
+                            "index": 0,
+                            "extract": "url"
+                        }
+                    },
+                    "source": "google-news-scraper",
+                    "name": "simple_selector"
+                },
+                {
+                    "node": "article-page-scraper",
+                    "inputs": {
+                        "url": "{{simple_selector.selected_url}}"
+                    }
+                }
+            ]
+        }
+
                         # Check if node exists
                         node_name = step["node"]
                         node_path = self.nodes_dir / node_name
@@ -372,33 +414,8 @@ Based on this tool result, please continue with your analysis and provide the fi
             }
     
     def _extract_keywords_from_request(self, user_request: str) -> List[str]:
-        """Extract relevant keywords from user request"""
-        # Simple keyword extraction - can be enhanced with NLP
-        keywords = []
-        
-        # Common patterns
-        if "AI" in user_request or "artificial intelligence" in user_request:
-            keywords.append("AI")
-            keywords.append("artificial intelligence")
-        
-        if "healthcare" in user_request.lower():
-            keywords.append("healthcare")
-        
-        if "startup" in user_request.lower() or "company" in user_request.lower():
-            keywords.append("startup")
-        
-        if "funding" in user_request.lower() or "raised" in user_request.lower() or "money" in user_request.lower():
-            keywords.append("funding")
-            keywords.append("investment")
-        
-        if "technology" in user_request.lower() or "tech" in user_request.lower():
-            keywords.append("technology")
-        
-        # Default fallback
-        if not keywords:
-            keywords = ["AI", "technology"]
-        
-        return keywords
+        """Extract comprehensive keywords from ANY user request using intelligent analysis"""
+        return self._extract_all_relevant_keywords(user_request)
     
     def _create_workflow_from_request(self, user_request: str, keywords: List[str]) -> Optional[Dict[str, Any]]:
         """Create workflow JSON directly from user request with intelligent assembly"""
@@ -428,26 +445,36 @@ Based on this tool result, please continue with your analysis and provide the fi
                 }
             })
             
-            # Step 2: Intelligent Article Selection
+            # Step 2: Intelligent Article Selection with Error Recovery
             selection_criteria = analysis["selection_criteria"]
             workflow["steps"].append({
                 "assembly": {
                     "selected_article_url": {
-                        "action": "select_index",
+                        "action": "intelligent_select",
                         "from": "articles",
-                        "index": 0,
-                        "extract": "url"
+                        "criteria": analysis["keyword_filters"],
+                        "fallback_strategy": "try_multiple",
+                        "extract": "url",
+                        "description": selection_criteria
                     },
                     "selected_article_title": {
-                        "action": "select_index", 
+                        "action": "intelligent_select", 
                         "from": "articles",
-                        "index": 0,
-                        "extract": "title"
+                        "criteria": analysis["keyword_filters"],
+                        "fallback_strategy": "try_multiple",
+                        "extract": "title",
+                        "description": selection_criteria
+                    },
+                    "backup_urls": {
+                        "action": "extract_all",
+                        "from": "articles",
+                        "extract": "url",
+                        "limit": 5
                     }
                 },
                 "source": "google-news-scraper",
                 "name": "intelligent_article_selector",
-                "description": f"🤖 AI ASSEMBLY: {selection_criteria}"
+                "description": f"🤖 AI ASSEMBLY: {selection_criteria} with fallback strategy"
             })
             
             # Step 3: Article Content Scraping
@@ -460,71 +487,192 @@ Based on this tool result, please continue with your analysis and provide the fi
                 }
             })
             
-            # Step 4: Content Processing Assembly
+            # Step 4: Content Processing Assembly with Error Recovery
             workflow["steps"].append({
                 "assembly": {
-                    "clean_article_text": "article_text",
+                    "clean_article_text": {
+                        "primary": "article_text",
+                        "fallback_action": "try_next_url",
+                        "backup_urls": "{{intelligent_article_selector.backup_urls}}",
+                        "min_content_length": 100,
+                        "error_handling": "auto_retry"
+                    },
                     "source_url": "url",
-                    "article_title": "{{intelligent_article_selector.selected_article_title}}"
+                    "article_title": "{{intelligent_article_selector.selected_article_title}}",
+                    "content_quality_check": {
+                        "action": "validate_content",
+                        "min_words": 50,
+                        "paywall_detection": True,
+                        "retry_on_failure": True
+                    }
                 },
                 "source": "article-page-scraper",
                 "name": "content_processor",
-                "description": "🤖 AI ASSEMBLY: Extracts and prepares content for AI analysis"
+                "description": "🤖 AI ASSEMBLY: Extracts content with intelligent error recovery and paywall detection"
             })
             
-            # Step 5: AI Processing
+            # Step 5: AI Processing with Enhanced Instructions
             processing_instructions = analysis["processing_instructions"]
             workflow["steps"].append({
                 "node": "article-processor",
                 "inputs": {
                     "article_text": "{{content_processor.clean_article_text}}",
-                    "openrouter_api_key": "your-openrouter-key-here",
+                    "openrouter_api_key": "your-openrouter-key-here", 
                     "model": "qwen/qwen3-coder:free",
-                    "custom_instructions": processing_instructions
+                    "custom_instructions": processing_instructions,
+                    "output_format": analysis["output_format"],
+                    "keyword_focus": analysis["keyword_filters"],
+                    "quality_requirements": {
+                        "min_summary_length": 200,
+                        "include_key_points": True,
+                        "highlight_relevance": True
+                    }
                 }
             })
             
-            return workflow
+            # Validate JSON structure before returning
+            import json
+            try:
+                json.dumps(workflow)  # Test if it's valid JSON
+                return workflow
+            except (TypeError, ValueError) as e:
+                print(f"JSON validation error: {e}")
+                # Return a simpler fallback workflow if complex one fails
+                return self._create_fallback_workflow(user_request, keywords)
             
         except Exception as e:
             print(f"Error creating workflow: {e}")
             return None
     
     def _analyze_user_requirements(self, user_request: str) -> Dict[str, Any]:
-        """Analyze user request to determine workflow requirements"""
-        analysis = {
-            "workflow_name": "Custom AI Workflow",
-            "description": "AI-generated workflow based on user requirements",
-            "max_articles": 5,
-            "time_period": "Last 24 hours",
-            "selection_criteria": "Select the most relevant article",
-            "processing_instructions": "Create a comprehensive summary"
-        }
-        
+        """Intelligently analyze ANY user request to determine workflow requirements"""
         request_lower = user_request.lower()
         
-        # Determine workflow name and description
-        if "healthcare" in request_lower:
-            analysis["workflow_name"] = "Healthcare AI News Analysis"
-            analysis["description"] = "Monitors and analyzes AI news in healthcare sector"
-            analysis["selection_criteria"] = "Select articles about AI in healthcare"
-        elif "startup" in request_lower or "funding" in request_lower:
-            analysis["workflow_name"] = "AI Startup Funding Monitor"
-            analysis["description"] = "Tracks AI startup funding news and investment trends"
-            analysis["selection_criteria"] = "Select articles about AI startup funding"
-        elif "summary" in request_lower or "newsletter" in request_lower:
-            analysis["workflow_name"] = "AI News Summary Generator"
-            analysis["description"] = "Creates summaries of AI news for newsletters"
-            analysis["processing_instructions"] = "Create concise summaries suitable for newsletters"
+        # Extract ALL keywords and concepts from the request
+        import re
+        words = re.findall(r'\b\w+\b', request_lower)
         
-        # Determine article count
-        if "few" in request_lower or "3" in user_request:
-            analysis["max_articles"] = 3
-        elif "many" in request_lower or "10" in user_request:
-            analysis["max_articles"] = 10
+        # Dynamic analysis based on content
+        analysis = {
+            "workflow_name": self._generate_workflow_name(user_request),
+            "description": f"AI-generated workflow: {user_request[:100]}...",
+            "max_articles": self._determine_article_count(user_request),
+            "time_period": self._determine_time_period(user_request),
+            "selection_criteria": self._generate_selection_criteria(user_request),
+            "processing_instructions": self._generate_processing_instructions(user_request),
+            "keyword_filters": self._extract_all_relevant_keywords(user_request),
+            "output_format": self._determine_output_format(user_request)
+        }
         
-        # Determine time period
-        if "week" in request_lower:
+        return analysis
+    
+    def _generate_workflow_name(self, request: str) -> str:
+        """Generate intelligent workflow name from ANY request"""
+        request_lower = request.lower()
+        
+        # Extract main action verbs and nouns
+        action_words = ["monitor", "track", "analyze", "summarize", "collect", "process", "generate", "create"]
+        subject_words = ["news", "articles", "data", "content", "information", "reports", "summaries"]
+        
+        found_actions = [word for word in action_words if word in request_lower]
+        found_subjects = [word for word in subject_words if word in request_lower]
+        
+        if found_actions and found_subjects:
+            return f"AI {found_actions[0].title()} {found_subjects[0].title()} Workflow"
+        else:
+            return "Custom AI Automation Workflow"
+    
+    def _determine_article_count(self, request: str) -> int:
+        """Intelligently determine how many articles to process"""
+        request_lower = request.lower()
+        
+        # Look for quantity indicators
+        if any(word in request_lower for word in ["few", "couple", "2", "3"]):
+            return 3
+        elif any(word in request_lower for word in ["many", "several", "bunch", "10", "lots"]):
+            return 10
+        elif any(word in request_lower for word in ["comprehensive", "extensive", "thorough"]):
+            return 15
+        else:
+            return 5  # Default
+    
+    def _determine_time_period(self, request: str) -> str:
+        """Intelligently determine time period from request"""
+        request_lower = request.lower()
+        
+        if any(word in request_lower for word in ["today", "recent", "latest", "current"]):
+            return "Last 24 hours"
+        elif any(word in request_lower for word in ["week", "weekly", "7 days"]):
+            return "Last 7 days"
+        elif any(word in request_lower for word in ["month", "monthly", "30 days"]):
+            return "Last 30 days"
+        else:
+            return "Last 24 hours"  # Default
+    
+    def _generate_selection_criteria(self, request: str) -> str:
+        """Generate intelligent selection criteria for ANY request"""
+        keywords = self._extract_all_relevant_keywords(request)
+        
+        if len(keywords) > 0:
+            return f"Select articles most relevant to: {', '.join(keywords[:3])}"
+        else:
+            return "Select the most relevant and high-quality articles"
+    
+    def _generate_processing_instructions(self, request: str) -> str:
+        """Generate processing instructions based on user intent"""
+        request_lower = request.lower()
+        
+        if any(word in request_lower for word in ["summary", "summarize", "brief"]):
+            return "Create concise, informative summaries highlighting key points"
+        elif any(word in request_lower for word in ["analysis", "analyze", "insights"]):
+            return "Perform deep analysis and extract valuable insights"
+        elif any(word in request_lower for word in ["newsletter", "email", "report"]):
+            return "Format content for newsletter/report distribution"
+        elif any(word in request_lower for word in ["research", "investigate"]):
+            return "Conduct thorough research analysis and compile findings"
+        else:
+            return "Process content according to user requirements and extract valuable information"
+    
+    def _extract_all_relevant_keywords(self, request: str) -> List[str]:
+        """Extract ALL relevant keywords from ANY request"""
+        request_lower = request.lower()
+        keywords = []
+        
+        # Technology keywords
+        tech_keywords = ["AI", "artificial intelligence", "machine learning", "technology", "tech", "digital", "automation", "robotics", "data science"]
+        keywords.extend([kw for kw in tech_keywords if kw.lower() in request_lower])
+        
+        # Industry keywords
+        industry_keywords = ["healthcare", "finance", "education", "retail", "manufacturing", "automotive", "energy", "agriculture"]
+        keywords.extend([kw for kw in industry_keywords if kw.lower() in request_lower])
+        
+        # Business keywords
+        business_keywords = ["startup", "funding", "investment", "company", "business", "enterprise", "innovation", "market"]
+        keywords.extend([kw for kw in business_keywords if kw.lower() in request_lower])
+        
+        # Extract any quoted phrases or specific terms
+        import re
+        quoted_terms = re.findall(r'"([^"]*)"', request)
+        keywords.extend(quoted_terms)
+        
+        # If no specific keywords found, use general terms
+        if not keywords:
+            keywords = ["technology", "innovation", "business"]
+        
+        return list(set(keywords))  # Remove duplicates
+    
+    def _determine_output_format(self, request: str) -> str:
+        """Determine desired output format"""
+        request_lower = request.lower()
+        
+        if any(word in request_lower for word in ["json", "structured", "data"]):
+            return "structured_json"
+        elif any(word in request_lower for word in ["markdown", "formatted"]):
+            return "markdown"
+        elif any(word in request_lower for word in ["plain", "simple", "text"]):
+            return "plain_text"
+        else:
+            return "formatted_summary"
             analysis["time_period"] = "Last 7 days"
         elif "today" in request_lower:
             analysis["time_period"] = "Last 24 hours"
