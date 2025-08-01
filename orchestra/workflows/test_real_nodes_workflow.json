@@ -1,0 +1,64 @@
+{
+  "name": "AI Finance News Analysis",
+  "description": "Uses actual available nodes to find AI finance news and create summaries",
+  "version": "1.0.0",
+  "created_by": "Orchestra AI Agent - Fixed Version",
+  "user_request": "I want AI to check the latest articles about AI being used in finance, select the article you think is most interesting and show me a summary of it",
+  "steps": [
+    {
+      "node": "google-news-scraper",
+      "inputs": {
+        "api_token": "your-apify-token-here",
+        "keywords": ["AI finance", "artificial intelligence banking", "fintech AI", "machine learning finance"],
+        "max_news": 10,
+        "time_period": "Last 24 hours",
+        "region_code": "United States (English)",
+        "extract_descriptions": true
+      }
+    },
+    {
+      "assembly": {
+        "selected_article_url": {
+          "action": "select_index",
+          "from": "articles",
+          "extract": "url",
+          "index": 0,
+          "description": "Select the first article (most recent/relevant)"
+        }
+      },
+      "source": "google-news-scraper",
+      "name": "article_selector",
+      "description": "Select the most recent AI finance article for detailed analysis"
+    },
+    {
+      "node": "article-page-scraper",
+      "inputs": {
+        "url": "{{article_selector.selected_article_url}}",
+        "output_filename": "ai_finance_article.html",
+        "headless": true,
+        "wait_time": 3000
+      }
+    },
+    {
+      "assembly": {
+        "clean_article_text": {
+          "action": "extract",
+          "from": "article_text"
+        }
+      },
+      "source": "article-page-scraper",
+      "name": "text_extractor",
+      "description": "Extract clean article text for AI processing"
+    },
+    {
+      "node": "article-processor",
+      "inputs": {
+        "article_text": "{{text_extractor.clean_article_text}}",
+        "openrouter_api_key": "your-openrouter-key-here",
+        "model": "qwen/qwen3-coder:free",
+        "max_tokens": 500,
+        "temperature": 0.3
+      }
+    }
+  ]
+}
