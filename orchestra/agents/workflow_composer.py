@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
-Orchestra Workflow Composer Agent - LangChain powered intelligent workflow creation
+Orchestra Workflow Composer Agent - Advanced LangChain powered intelligent workflow creation
+Handles ANY combination of nodes with intelligent assembly logic
 """
 import json
 import os
@@ -14,7 +15,7 @@ from langchain_core.prompts import ChatPromptTemplate
 
 class WorkflowComposerAgent:
     def __init__(self, openrouter_api_key: str, nodes_dir: str = None):
-        """Initialize the Workflow Composer Agent"""
+        """Initialize the Advanced Workflow Composer Agent"""
         if nodes_dir is None:
             current_dir = Path(__file__).parent
             self.nodes_dir = current_dir.parent / "nodes"
@@ -26,8 +27,8 @@ class WorkflowComposerAgent:
             base_url="https://openrouter.ai/api/v1",
             api_key=openrouter_api_key,
             model="qwen/qwen3-coder:free",
-            temperature=0.3,
-            max_tokens=2000
+            temperature=0.1,  # Lower temperature for more consistent logic
+            max_tokens=3000   # Increased for complex workflows
         )
 
         # Initialize conversation history
@@ -39,33 +40,46 @@ class WorkflowComposerAgent:
         # Workflow memory for reuse
         self.workflow_memory = {}
 
+        # Node capability analysis cache
+        self.node_capabilities_cache = {}
+
     def _create_tools(self) -> List[Tool]:
-        """Create LangChain tools for the agent"""
+        """Create comprehensive LangChain tools for the agent"""
         tools = [
             Tool(
-                name="discover_nodes",
-                func=self._discover_nodes,
-                description="Discover all available Orchestra nodes and their capabilities, input/output schemas"
+                name="discover_all_nodes",
+                func=self._discover_all_nodes,
+                description="Discover ALL available Orchestra nodes with complete capability analysis including input/output schemas, dependencies, and functional purpose"
             ),
             Tool(
-                name="validate_workflow",
-                func=self._validate_workflow,
-                description="Validate a workflow JSON structure before execution"
+                name="analyze_node_compatibility",
+                func=self._analyze_node_compatibility,
+                description="Analyze compatibility between two nodes for chaining. Input: source_node|target_node"
             ),
             Tool(
-                name="save_workflow",
-                func=self._save_workflow,
-                description="Save a workflow JSON to file. Input should be: filename|workflow_json"
+                name="generate_assembly_logic",
+                func=self._generate_assembly_logic,
+                description="Generate intelligent assembly logic between nodes. Input: source_node|target_node|user_intent"
             ),
             Tool(
-                name="get_workflow_template",
-                func=self._get_workflow_template,
-                description="Get the standard workflow JSON template structure"
+                name="validate_workflow_structure",
+                func=self._validate_workflow_structure,
+                description="Validate complete workflow JSON structure and logic flow"
             ),
             Tool(
-                name="analyze_assembly_needs",
-                func=self._analyze_assembly_needs,
-                description="Analyze what assembly steps are needed between nodes based on their schemas"
+                name="optimize_node_sequence",
+                func=self._optimize_node_sequence,
+                description="Optimize the sequence of nodes for maximum efficiency. Input: node_list|user_goal"
+            ),
+            Tool(
+                name="analyze_user_requirements",
+                func=self._analyze_user_requirements,
+                description="Deep analysis of user requirements to determine needed capabilities and data flow"
+            ),
+            Tool(
+                name="save_workflow_file",
+                func=self._save_workflow_file,
+                description="Save workflow JSON to file. Input: filename|workflow_json"
             )
         ]
         return tools
@@ -80,16 +94,14 @@ class WorkflowComposerAgent:
                     return f"Error calling {tool_name}: {str(e)}"
         return f"Tool {tool_name} not found"
 
-    def _process_agent_response(self, response: str, max_iterations: int = 5) -> str:
-        """Process agent response and handle tool calls"""
+    def _process_agent_response(self, response: str, max_iterations: int = 8) -> str:
+        """Process agent response and handle tool calls with increased iterations"""
         iteration = 0
         current_response = response
 
         while iteration < max_iterations:
-            # Check if response contains tool calls
             if "Action:" in current_response and "Action Input:" in current_response:
                 try:
-                    # Extract action and input
                     lines = current_response.split('\n')
                     action_line = None
                     input_line = None
@@ -98,7 +110,6 @@ class WorkflowComposerAgent:
                         if line.strip().startswith("Action:"):
                             action_line = line.strip().replace("Action:", "").strip()
                         elif line.strip().startswith("Action Input:"):
-                            # Get the input, which might be on the same line or next lines
                             input_text = line.strip().replace("Action Input:", "").strip()
                             if not input_text and i + 1 < len(lines):
                                 input_text = lines[i + 1].strip()
@@ -106,21 +117,20 @@ class WorkflowComposerAgent:
                             break
 
                     if action_line and input_line:
-                        # Call the tool
                         tool_result = self._call_tool(action_line, input_line)
 
-                        # Create follow-up prompt with tool result
                         follow_up_prompt = f"""
-Previous response: {current_response}
+Previous analysis: {current_response}
 
 Tool Result from {action_line}: {tool_result}
 
-Based on this tool result, please continue with your analysis and provide the final workflow JSON. If you need to call more tools, use the same Action/Action Input format.
+Based on this tool result, continue your comprehensive analysis. If you need more information, use additional tools. When you have enough information, provide the complete workflow JSON that perfectly matches the user's requirements.
+
+Remember: You must create a workflow that uses the BEST available nodes for the user's specific request, with intelligent assembly steps that properly transform data between nodes.
 """
 
-                        # Get next response
                         messages = [
-                            SystemMessage(content="You are an expert Orchestra workflow composer. Continue your analysis based on the tool results."),
+                            SystemMessage(content=self._get_advanced_system_prompt()),
                             HumanMessage(content=follow_up_prompt)
                         ]
 
@@ -133,13 +143,110 @@ Based on this tool result, please continue with your analysis and provide the fi
                     current_response += f"\n\nError processing tool call: {str(e)}"
                     break
             else:
-                # No more tool calls needed
                 break
 
         return current_response
 
-    def _discover_nodes(self, query: str = "") -> str:
-        """Discover available nodes and their capabilities"""
+    def _get_advanced_system_prompt(self) -> str:
+        """Get the comprehensive system prompt for general-purpose workflow creation"""
+        return """You are an EXPERT Orchestra Workflow Composer Agent with deep understanding of automation, data flow, and intelligent node orchestration.
+
+CORE MISSION: Create perfect workflows for ANY user request using ANY available nodes, with intelligent assembly logic that ensures proper data flow.
+
+CRITICAL CAPABILITIES:
+1. **Universal Node Understanding**: Analyze ANY node's capabilities, inputs, outputs, and purpose
+2. **Intelligent Node Selection**: Choose the OPTIMAL nodes for any user requirement
+3. **Smart Assembly Logic**: Create perfect data transformations between ANY nodes
+4. **Workflow Optimization**: Order nodes for maximum efficiency and logical flow
+5. **Requirement Analysis**: Extract precise technical requirements from natural language
+
+WORKFLOW CREATION PROCESS:
+1. **Deep Requirement Analysis**: 
+   - Extract user's core goal and sub-requirements
+   - Identify needed data sources, processing steps, and outputs
+   - Determine quality criteria and success metrics
+
+2. **Comprehensive Node Discovery**:
+   - Analyze ALL available nodes and their capabilities
+   - Map node functions to user requirements
+   - Identify optimal node combinations
+
+3. **Intelligent Node Selection**:
+   - Choose nodes that BEST match user needs (not just available ones)
+   - Consider data flow compatibility
+   - Optimize for efficiency and reliability
+
+4. **Advanced Assembly Logic**:
+   - Create intelligent data transformations between nodes
+   - Handle data type conversions and filtering
+   - Implement conditional logic and error handling
+   - Ensure perfect data flow from input to final output
+
+5. **Workflow Optimization**:
+   - Order nodes for logical data flow
+   - Minimize unnecessary steps
+   - Maximize parallel processing where possible
+   - Ensure robust error handling
+
+ASSEMBLY LOGIC INTELLIGENCE:
+- **Smart Selection**: Choose best items from arrays based on relevance, quality, or user criteria
+- **Data Transformation**: Convert data formats, extract specific fields, combine data sources
+- **Conditional Logic**: Make decisions based on data content or user preferences
+- **Quality Filtering**: Remove low-quality or irrelevant data
+- **Context Awareness**: Use user intent to guide data processing decisions
+
+WORKFLOW JSON STRUCTURE:
+```json
+{
+  "name": "Descriptive Workflow Name",
+  "description": "Clear description of what this workflow accomplishes",
+  "version": "1.0.0",
+  "created_by": "Orchestra AI Agent",
+  "user_request": "Original user request",
+  "steps": [
+    {
+      "node": "node-name",
+      "inputs": {
+        "field": "value or {{previous_step.field}}"
+      }
+    },
+    {
+      "assembly": {
+        "output_field": {
+          "action": "intelligent_select|extract|transform|filter",
+          "from": "source_field",
+          "criteria": "selection criteria based on user intent",
+          "extract": "specific_field_to_extract",
+          "fallback": "fallback_strategy"
+        }
+      },
+      "source": "previous_step_name",
+      "name": "descriptive_assembly_name",
+      "description": "What this assembly accomplishes"
+    }
+  ]
+}
+```
+
+ADVANCED ASSEMBLY ACTIONS:
+- **intelligent_select**: Choose best item based on relevance, quality, or user criteria
+- **extract**: Pull specific data fields from complex structures
+- **transform**: Convert data formats or combine multiple sources
+- **filter**: Remove items that don't meet criteria
+- **aggregate**: Combine multiple items into summaries or collections
+- **conditional**: Make decisions based on data content
+
+CRITICAL REQUIREMENTS:
+1. **Perfect Data Flow**: Every input must have a valid source
+2. **User Intent Alignment**: Assembly logic must serve the user's specific goal
+3. **Error Resilience**: Include fallback strategies for data processing
+4. **Efficiency**: Minimize unnecessary steps while maximizing output quality
+5. **Flexibility**: Work with ANY combination of available nodes
+
+Remember: You are creating workflows for a GENERAL-PURPOSE automation system. The current nodes are just examples. Your job is to create perfect workflows using WHATEVER nodes are available to achieve the user's goal."""
+
+    def _discover_all_nodes(self, query: str = "") -> str:
+        """Comprehensive discovery of all available nodes with detailed capability analysis"""
         try:
             nodes_info = []
 
@@ -154,14 +261,20 @@ Based on this tool result, please continue with your analysis and provide the fi
                             with open(config_path, 'r') as f:
                                 config = json.load(f)
 
+                            # Enhanced node analysis
                             node_info = {
                                 "node_name": node_dir.name,
-                                "name": config.get("name", node_dir.name),
+                                "display_name": config.get("name", node_dir.name),
                                 "description": config.get("description", "No description"),
                                 "input_schema": config.get("input_schema", {}),
                                 "output_schema": config.get("output_schema", []),
-                                "type": config.get("type", "unknown"),
-                                "dependencies": config.get("dependencies", [])
+                                "node_type": config.get("type", "unknown"),
+                                "language": config.get("language", "unknown"),
+                                "dependencies": config.get("dependencies", []),
+                                "capabilities": self._analyze_node_capabilities(config, node_dir.name),
+                                "data_flow": self._analyze_data_flow(config),
+                                "use_cases": self._identify_use_cases(config),
+                                "compatibility": self._assess_compatibility(config)
                             }
                             nodes_info.append(node_info)
                         except Exception as e:
@@ -170,101 +283,673 @@ Based on this tool result, please continue with your analysis and provide the fi
                                 "error": f"Could not load config: {str(e)}"
                             })
 
-            return json.dumps(nodes_info, indent=2)
+            # Add comprehensive analysis summary
+            analysis_summary = {
+                "total_nodes": len(nodes_info),
+                "node_types": list(set([n.get("node_type", "unknown") for n in nodes_info if "error" not in n])),
+                "capabilities_overview": self._summarize_system_capabilities(nodes_info),
+                "workflow_patterns": self._identify_workflow_patterns(nodes_info)
+            }
+
+            return json.dumps({
+                "nodes": nodes_info,
+                "system_analysis": analysis_summary
+            }, indent=2)
 
         except Exception as e:
             return f"Error discovering nodes: {str(e)}"
 
-    def _validate_workflow(self, workflow_json: str) -> str:
-        """Validate workflow JSON structure"""
+    def _analyze_node_capabilities(self, config: Dict[str, Any], node_name: str) -> Dict[str, Any]:
+        """Deep analysis of what a node can do"""
+        capabilities = {
+            "primary_function": "unknown",
+            "data_sources": [],
+            "processing_types": [],
+            "output_formats": [],
+            "special_features": []
+        }
+
+        description = config.get("description", "").lower()
+        node_type = config.get("type", "").lower()
+        
+        # Analyze primary function
+        if "scrape" in description or "scraper" in node_type:
+            capabilities["primary_function"] = "data_extraction"
+            capabilities["data_sources"].append("web")
+        elif "process" in description or "processor" in node_type:
+            capabilities["primary_function"] = "data_processing"
+        elif "api" in description:
+            capabilities["primary_function"] = "api_integration"
+        elif "database" in description:
+            capabilities["primary_function"] = "data_storage"
+
+        # Analyze input/output capabilities
+        input_schema = config.get("input_schema", {})
+        output_schema = config.get("output_schema", [])
+
+        # Determine data processing types
+        if any("text" in field.lower() for field in output_schema):
+            capabilities["processing_types"].append("text_processing")
+        if any("html" in field.lower() for field in output_schema):
+            capabilities["processing_types"].append("html_processing")
+        if any("json" in field.lower() for field in output_schema):
+            capabilities["processing_types"].append("structured_data")
+
+        return capabilities
+
+    def _analyze_data_flow(self, config: Dict[str, Any]) -> Dict[str, Any]:
+        """Analyze how data flows through this node"""
+        input_schema = config.get("input_schema", {})
+        output_schema = config.get("output_schema", [])
+        
+        return {
+            "required_inputs": input_schema.get("required", []),
+            "optional_inputs": input_schema.get("optional", []),
+            "outputs": output_schema,
+            "data_transformation": self._infer_transformation_type(input_schema, output_schema)
+        }
+
+    def _infer_transformation_type(self, inputs: Dict, outputs: List) -> str:
+        """Infer what type of data transformation this node performs"""
+        if not inputs or not outputs:
+            return "unknown"
+        
+        input_fields = inputs.get("required", []) + inputs.get("optional", [])
+        
+        if "url" in input_fields and any("content" in out.lower() for out in outputs):
+            return "web_content_extraction"
+        elif any("text" in inp.lower() for inp in input_fields) and any("summary" in out.lower() for out in outputs):
+            return "text_summarization"
+        elif "keywords" in input_fields and "articles" in outputs:
+            return "content_search"
+        else:
+            return "data_processing"
+
+    def _identify_use_cases(self, config: Dict[str, Any]) -> List[str]:
+        """Identify common use cases for this node"""
+        use_cases = []
+        description = config.get("description", "").lower()
+        node_type = config.get("type", "").lower()
+        
+        if "news" in description:
+            use_cases.extend(["news_monitoring", "content_research", "trend_analysis"])
+        if "scrape" in description:
+            use_cases.extend(["data_collection", "web_research", "content_extraction"])
+        if "ai" in description or "llm" in description:
+            use_cases.extend(["content_analysis", "text_processing", "summarization"])
+        if "api" in description:
+            use_cases.extend(["data_integration", "service_connection", "automation"])
+            
+        return use_cases
+
+    def _assess_compatibility(self, config: Dict[str, Any]) -> Dict[str, Any]:
+        """Assess compatibility with other node types"""
+        output_schema = config.get("output_schema", [])
+        
+        compatibility = {
+            "can_feed_to": [],
+            "common_outputs": output_schema,
+            "chaining_potential": "medium"
+        }
+        
+        # Determine what types of nodes this can feed data to
+        if "url" in output_schema:
+            compatibility["can_feed_to"].append("web_scrapers")
+        if any("text" in out.lower() for out in output_schema):
+            compatibility["can_feed_to"].append("text_processors")
+        if any("html" in out.lower() for out in output_schema):
+            compatibility["can_feed_to"].append("html_processors")
+            
+        return compatibility
+
+    def _summarize_system_capabilities(self, nodes_info: List[Dict]) -> Dict[str, Any]:
+        """Summarize overall system capabilities"""
+        capabilities = {
+            "data_sources": set(),
+            "processing_types": set(),
+            "output_formats": set(),
+            "workflow_types": set()
+        }
+        
+        for node in nodes_info:
+            if "error" not in node and "capabilities" in node:
+                caps = node["capabilities"]
+                capabilities["data_sources"].update(caps.get("data_sources", []))
+                capabilities["processing_types"].update(caps.get("processing_types", []))
+                capabilities["output_formats"].update(caps.get("output_formats", []))
+        
+        return {k: list(v) for k, v in capabilities.items()}
+
+    def _identify_workflow_patterns(self, nodes_info: List[Dict]) -> List[str]:
+        """Identify common workflow patterns possible with available nodes"""
+        patterns = []
+        
+        node_types = [n.get("node_type", "") for n in nodes_info if "error" not in n]
+        
+        if "scraper" in node_types and "processor" in node_types:
+            patterns.append("web_scraping_to_analysis")
+        if any("news" in n.get("description", "").lower() for n in nodes_info):
+            patterns.append("news_monitoring_pipeline")
+        if any("ai" in n.get("description", "").lower() for n in nodes_info):
+            patterns.append("ai_content_processing")
+            
+        return patterns
+
+    def _analyze_node_compatibility(self, input_data: str) -> str:
+        """Analyze compatibility between two specific nodes"""
+        try:
+            parts = input_data.split("|")
+            if len(parts) != 2:
+                return "Input format should be: source_node|target_node"
+
+            source_node, target_node = parts
+
+            # Load node configurations
+            source_config_path = self.nodes_dir / source_node / "config.json"
+            target_config_path = self.nodes_dir / target_node / "config.json"
+
+            if not source_config_path.exists():
+                return f"Source node '{source_node}' config not found"
+            if not target_config_path.exists():
+                return f"Target node '{target_node}' config not found"
+
+            with open(source_config_path, 'r') as f:
+                source_config = json.load(f)
+            with open(target_config_path, 'r') as f:
+                target_config = json.load(f)
+
+            # Comprehensive compatibility analysis
+            analysis = {
+                "source_node": source_node,
+                "target_node": target_node,
+                "compatibility_score": 0,
+                "direct_matches": [],
+                "possible_transformations": [],
+                "assembly_requirements": [],
+                "data_flow_analysis": {},
+                "recommendations": []
+            }
+
+            source_outputs = source_config.get("output_schema", [])
+            target_inputs = target_config.get("input_schema", {})
+            target_required = target_inputs.get("required", [])
+            target_optional = target_inputs.get("optional", [])
+
+            # Check direct field matches
+            for output_field in source_outputs:
+                if output_field in target_required:
+                    analysis["direct_matches"].append(output_field)
+                    analysis["compatibility_score"] += 10
+                elif output_field in target_optional:
+                    analysis["direct_matches"].append(f"{output_field} (optional)")
+                    analysis["compatibility_score"] += 5
+
+            # Analyze possible transformations
+            for required_field in target_required:
+                if required_field not in source_outputs:
+                    # Look for semantic matches
+                    possible_sources = self._find_semantic_matches(required_field, source_outputs)
+                    if possible_sources:
+                        analysis["possible_transformations"].append({
+                            "target_field": required_field,
+                            "possible_sources": possible_sources,
+                            "transformation_type": "semantic_mapping"
+                        })
+                        analysis["compatibility_score"] += 3
+
+            # Generate assembly requirements
+            for required_field in target_required:
+                if required_field not in [m.split(" ")[0] for m in analysis["direct_matches"]]:
+                    analysis["assembly_requirements"].append({
+                        "field": required_field,
+                        "requirement": "Must be provided via assembly step or default value"
+                    })
+
+            # Generate recommendations
+            if analysis["compatibility_score"] >= 20:
+                analysis["recommendations"].append("High compatibility - direct chaining recommended")
+            elif analysis["compatibility_score"] >= 10:
+                analysis["recommendations"].append("Medium compatibility - assembly step recommended")
+            else:
+                analysis["recommendations"].append("Low compatibility - consider intermediate processing node")
+
+            return json.dumps(analysis, indent=2)
+
+        except Exception as e:
+            return f"Error analyzing compatibility: {str(e)}"
+
+    def _find_semantic_matches(self, target_field: str, source_fields: List[str]) -> List[str]:
+        """Find semantically similar fields between source and target"""
+        matches = []
+        target_lower = target_field.lower()
+        
+        # Define semantic mappings
+        semantic_groups = {
+            "url": ["link", "href", "address", "location"],
+            "text": ["content", "body", "article", "description"],
+            "title": ["name", "heading", "subject"],
+            "content": ["text", "body", "article", "data"],
+            "data": ["content", "information", "result"]
+        }
+        
+        for source_field in source_fields:
+            source_lower = source_field.lower()
+            
+            # Direct substring match
+            if target_lower in source_lower or source_lower in target_lower:
+                matches.append(source_field)
+                continue
+                
+            # Semantic group matching
+            for key, synonyms in semantic_groups.items():
+                if key in target_lower and any(syn in source_lower for syn in synonyms):
+                    matches.append(source_field)
+                elif key in source_lower and any(syn in target_lower for syn in synonyms):
+                    matches.append(source_field)
+        
+        return matches
+
+    def _generate_assembly_logic(self, input_data: str) -> str:
+        """Generate intelligent assembly logic between nodes"""
+        try:
+            parts = input_data.split("|")
+            if len(parts) != 3:
+                return "Input format should be: source_node|target_node|user_intent"
+
+            source_node, target_node, user_intent = parts
+
+            # Load configurations
+            source_config_path = self.nodes_dir / source_node / "config.json"
+            target_config_path = self.nodes_dir / target_node / "config.json"
+
+            with open(source_config_path, 'r') as f:
+                source_config = json.load(f)
+            with open(target_config_path, 'r') as f:
+                target_config = json.load(f)
+
+            source_outputs = source_config.get("output_schema", [])
+            target_inputs = target_config.get("input_schema", {})
+            target_required = target_inputs.get("required", [])
+
+            assembly_logic = {}
+
+            # Generate intelligent assembly based on user intent
+            intent_lower = user_intent.lower()
+
+            for required_field in target_required:
+                if required_field in source_outputs:
+                    # Direct mapping
+                    assembly_logic[f"mapped_{required_field}"] = required_field
+                else:
+                    # Intelligent transformation based on intent
+                    if "best" in intent_lower or "relevant" in intent_lower:
+                        if "articles" in source_outputs and "url" in required_field:
+                            assembly_logic[f"selected_{required_field}"] = {
+                                "action": "intelligent_select",
+                                "from": "articles",
+                                "criteria": f"most relevant to: {user_intent}",
+                                "extract": required_field,
+                                "fallback": "select_index",
+                                "fallback_index": 0
+                            }
+                    elif "first" in intent_lower or "latest" in intent_lower:
+                        if "articles" in source_outputs:
+                            assembly_logic[f"selected_{required_field}"] = {
+                                "action": "select_index",
+                                "from": "articles",
+                                "index": 0,
+                                "extract": required_field
+                            }
+                    elif "random" in intent_lower:
+                        if "articles" in source_outputs:
+                            assembly_logic[f"selected_{required_field}"] = {
+                                "action": "select_random",
+                                "from": "articles",
+                                "extract": required_field
+                            }
+
+            return json.dumps({
+                "assembly_logic": assembly_logic,
+                "user_intent": user_intent,
+                "transformation_strategy": self._determine_transformation_strategy(user_intent),
+                "quality_checks": self._generate_quality_checks(user_intent)
+            }, indent=2)
+
+        except Exception as e:
+            return f"Error generating assembly logic: {str(e)}"
+
+    def _determine_transformation_strategy(self, user_intent: str) -> str:
+        """Determine the best transformation strategy based on user intent"""
+        intent_lower = user_intent.lower()
+        
+        if any(word in intent_lower for word in ["best", "relevant", "important", "interesting"]):
+            return "quality_based_selection"
+        elif any(word in intent_lower for word in ["first", "latest", "recent", "new"]):
+            return "chronological_selection"
+        elif any(word in intent_lower for word in ["random", "any", "sample"]):
+            return "random_selection"
+        elif any(word in intent_lower for word in ["all", "every", "complete"]):
+            return "comprehensive_processing"
+        else:
+            return "intelligent_selection"
+
+    def _generate_quality_checks(self, user_intent: str) -> List[str]:
+        """Generate quality checks based on user intent"""
+        checks = ["validate_data_exists", "check_required_fields"]
+        
+        intent_lower = user_intent.lower()
+        
+        if "quality" in intent_lower or "best" in intent_lower:
+            checks.extend(["content_length_check", "relevance_scoring"])
+        if "accurate" in intent_lower or "reliable" in intent_lower:
+            checks.extend(["source_validation", "data_consistency_check"])
+        if "complete" in intent_lower:
+            checks.extend(["completeness_validation", "missing_data_handling"])
+            
+        return checks
+
+    def _validate_workflow_structure(self, workflow_json: str) -> str:
+        """Comprehensive workflow validation"""
         try:
             workflow = json.loads(workflow_json)
+            
+            validation_results = {
+                "structure_valid": True,
+                "errors": [],
+                "warnings": [],
+                "optimization_suggestions": [],
+                "data_flow_analysis": {}
+            }
 
-            errors = []
+            # Basic structure validation
+            required_fields = ["name", "steps"]
+            for field in required_fields:
+                if field not in workflow:
+                    validation_results["errors"].append(f"Missing required field: {field}")
+                    validation_results["structure_valid"] = False
 
-            # Check required fields
-            if "steps" not in workflow:
-                errors.append("Missing 'steps' field")
-
-            if "name" not in workflow:
-                errors.append("Missing 'name' field")
-
-            # Validate steps
             if "steps" in workflow:
-                for i, step in enumerate(workflow["steps"]):
-                    if "node" in step:
-                        # Node step validation
-                        if "inputs" not in step:
-                            errors.append(f"Step {i+1}: Missing 'inputs' field")
+                steps = workflow["steps"]
+                if not isinstance(steps, list):
+                    validation_results["errors"].append("'steps' must be an array")
+                    validation_results["structure_valid"] = False
+                else:
+                    # Validate each step
+                    for i, step in enumerate(steps):
+                        step_errors = self._validate_step(step, i)
+                        validation_results["errors"].extend(step_errors)
 
-                        # Check if node exists
-                        node_name = step["node"]
-                        node_path = self.nodes_dir / node_name
-                        if not node_path.exists():
-                            errors.append(f"Step {i+1}: Node '{node_name}' does not exist")
+                    # Analyze data flow
+                    flow_analysis = self._analyze_workflow_data_flow(steps)
+                    validation_results["data_flow_analysis"] = flow_analysis
 
-                    elif "assembly" in step:
-                        # Assembly step validation
-                        if "source" not in step:
-                            errors.append(f"Step {i+1}: Assembly step missing 'source' field")
-
-                    else:
-                        errors.append(f"Step {i+1}: Must contain either 'node' or 'assembly' field")
-
-            if errors:
-                return f"Validation errors: {'; '.join(errors)}"
-            else:
-                return "Workflow validation passed"
+            return json.dumps(validation_results, indent=2)
 
         except json.JSONDecodeError as e:
             return f"Invalid JSON: {str(e)}"
         except Exception as e:
             return f"Validation error: {str(e)}"
 
-    def _create_fallback_workflow(self, user_request: str, keywords: List[str]) -> Dict[str, Any]:
-        """Create a simple, guaranteed-valid workflow as fallback"""
-        return {
-            "name": "Fallback AI Workflow",
-            "description": f"Simple workflow for: {user_request[:50]}...",
-            "version": "1.0.0", 
-            "created_by": "Orchestra AI Agent (Fallback)",
-            "user_request": user_request,
-            "steps": [
-                {
-                    "node": "google-news-scraper",
-                    "inputs": {
-                        "api_token": "your-apify-token-here",
-                        "keywords": keywords[:3],  # Limit to 3 keywords
-                        "max_news": 5,
-                        "time_period": "Last 24 hours",
-                        "region_code": "United States (English)"
+    def _validate_step(self, step: Dict[str, Any], step_index: int) -> List[str]:
+        """Validate individual workflow step"""
+        errors = []
+        
+        if "node" in step:
+            # Node step validation
+            node_name = step["node"]
+            if "inputs" not in step:
+                errors.append(f"Step {step_index + 1}: Missing 'inputs' field")
+            
+            # Check if node exists
+            node_path = self.nodes_dir / node_name
+            if not node_path.exists():
+                errors.append(f"Step {step_index + 1}: Node '{node_name}' does not exist")
+                
+        elif "assembly" in step:
+            # Assembly step validation
+            if "source" not in step:
+                errors.append(f"Step {step_index + 1}: Assembly step missing 'source' field")
+            if "name" not in step:
+                errors.append(f"Step {step_index + 1}: Assembly step missing 'name' field")
+                
+        else:
+            errors.append(f"Step {step_index + 1}: Must contain either 'node' or 'assembly' field")
+            
+        return errors
+
+    def _analyze_workflow_data_flow(self, steps: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Analyze data flow through the workflow"""
+        flow_analysis = {
+            "step_dependencies": {},
+            "data_transformations": [],
+            "potential_bottlenecks": [],
+            "optimization_opportunities": []
+        }
+        
+        available_data = {}
+        
+        for i, step in enumerate(steps):
+            step_name = f"step_{i}"
+            
+            if "node" in step:
+                node_name = step["node"]
+                step_name = node_name
+                
+                # Analyze inputs
+                inputs = step.get("inputs", {})
+                dependencies = []
+                
+                for input_field, input_value in inputs.items():
+                    if isinstance(input_value, str) and "{{" in input_value:
+                        # Extract dependency
+                        import re
+                        matches = re.findall(r'\{\{([^}]+)\}\}', input_value)
+                        dependencies.extend(matches)
+                
+                flow_analysis["step_dependencies"][step_name] = dependencies
+                
+                # Add outputs to available data (simplified)
+                available_data[step_name] = ["output_data"]
+                
+            elif "assembly" in step:
+                assembly_name = step.get("name", f"assembly_{i}")
+                source = step.get("source", "")
+                
+                flow_analysis["step_dependencies"][assembly_name] = [source] if source else []
+                flow_analysis["data_transformations"].append({
+                    "step": assembly_name,
+                    "type": "assembly",
+                    "source": source
+                })
+                
+                available_data[assembly_name] = ["transformed_data"]
+        
+        return flow_analysis
+
+    def _optimize_node_sequence(self, input_data: str) -> str:
+        """Optimize the sequence of nodes for maximum efficiency"""
+        try:
+            parts = input_data.split("|")
+            if len(parts) != 2:
+                return "Input format should be: node_list|user_goal"
+
+            node_list_str, user_goal = parts
+            node_list = json.loads(node_list_str)
+
+            optimization_result = {
+                "original_sequence": node_list,
+                "optimized_sequence": [],
+                "optimization_rationale": [],
+                "efficiency_improvements": []
+            }
+
+            # Analyze node dependencies and capabilities
+            node_analysis = {}
+            for node_name in node_list:
+                config_path = self.nodes_dir / node_name / "config.json"
+                if config_path.exists():
+                    with open(config_path, 'r') as f:
+                        config = json.load(f)
+                    node_analysis[node_name] = {
+                        "inputs": config.get("input_schema", {}),
+                        "outputs": config.get("output_schema", []),
+                        "type": config.get("type", "unknown")
                     }
-                },
-                {
-                    "assembly": {
-                        "selected_url": {
-                            "action": "select_index",
-                            "from": "articles", 
-                            "index": 0,
-                            "extract": "url"
-                        }
-                    },
-                    "source": "google-news-scraper",
-                    "name": "simple_selector"
-                },
-                {
-                    "node": "article-page-scraper",
-                    "inputs": {
-                        "url": "{{simple_selector.selected_url}}"
-                    }
-                }
-            ]
+
+            # Optimize sequence based on data flow
+            optimized = self._create_optimal_sequence(node_analysis, user_goal)
+            optimization_result["optimized_sequence"] = optimized["sequence"]
+            optimization_result["optimization_rationale"] = optimized["rationale"]
+
+            return json.dumps(optimization_result, indent=2)
+
+        except Exception as e:
+            return f"Error optimizing sequence: {str(e)}"
+
+    def _create_optimal_sequence(self, node_analysis: Dict[str, Any], user_goal: str) -> Dict[str, Any]:
+        """Create optimal node sequence based on data flow analysis"""
+        sequence = []
+        rationale = []
+        remaining_nodes = list(node_analysis.keys())
+        
+        # Start with data source nodes (nodes that don't require external inputs)
+        source_nodes = []
+        for node_name, analysis in node_analysis.items():
+            required_inputs = analysis["inputs"].get("required", [])
+            if not required_inputs or all(self._is_external_input(inp) for inp in required_inputs):
+                source_nodes.append(node_name)
+        
+        if source_nodes:
+            # Choose best source node based on user goal
+            best_source = self._select_best_source_node(source_nodes, node_analysis, user_goal)
+            sequence.append(best_source)
+            remaining_nodes.remove(best_source)
+            rationale.append(f"Started with {best_source} as primary data source")
+        
+        # Add remaining nodes based on data flow dependencies
+        while remaining_nodes:
+            next_node = self._find_next_compatible_node(sequence, remaining_nodes, node_analysis)
+            if next_node:
+                sequence.append(next_node)
+                remaining_nodes.remove(next_node)
+                rationale.append(f"Added {next_node} to process data from previous steps")
+            else:
+                # Add remaining nodes in original order if no clear dependencies
+                sequence.extend(remaining_nodes)
+                rationale.append("Added remaining nodes in original order")
+                break
+        
+        return {"sequence": sequence, "rationale": rationale}
+
+    def _is_external_input(self, input_field: str) -> bool:
+        """Check if input field is typically provided externally (API keys, URLs, etc.)"""
+        external_indicators = ["api", "key", "token", "url", "endpoint", "credentials"]
+        return any(indicator in input_field.lower() for indicator in external_indicators)
+
+    def _select_best_source_node(self, source_nodes: List[str], node_analysis: Dict, user_goal: str) -> str:
+        """Select the best source node based on user goal"""
+        goal_lower = user_goal.lower()
+        
+        for node_name in source_nodes:
+            node_type = node_analysis[node_name].get("type", "").lower()
+            if "scraper" in node_type and any(word in goal_lower for word in ["scrape", "collect", "gather"]):
+                return node_name
+            if "api" in node_type and "api" in goal_lower:
+                return node_name
+        
+        return source_nodes[0]  # Default to first available
+
+    def _find_next_compatible_node(self, current_sequence: List[str], remaining_nodes: List[str], node_analysis: Dict) -> Optional[str]:
+        """Find the next node that can process data from current sequence"""
+        if not current_sequence:
+            return None
+            
+        last_node = current_sequence[-1]
+        last_outputs = node_analysis.get(last_node, {}).get("outputs", [])
+        
+        for node_name in remaining_nodes:
+            required_inputs = node_analysis[node_name]["inputs"].get("required", [])
+            
+            # Check if any required input can be satisfied by previous outputs
+            for required_input in required_inputs:
+                if required_input in last_outputs or self._is_external_input(required_input):
+                    return node_name
+        
+        return None
+
+    def _analyze_user_requirements(self, user_request: str) -> str:
+        """Deep analysis of user requirements"""
+        analysis = {
+            "primary_goal": "",
+            "data_sources_needed": [],
+            "processing_requirements": [],
+            "output_requirements": [],
+            "quality_criteria": [],
+            "workflow_complexity": "medium",
+            "estimated_steps": 0,
+            "key_entities": [],
+            "action_verbs": [],
+            "success_metrics": []
         }
 
-    def _save_workflow(self, input_data: str) -> str:
+        request_lower = user_request.lower()
+        words = request_lower.split()
+
+        # Extract action verbs
+        action_verbs = ["find", "get", "collect", "gather", "scrape", "analyze", "process", "summarize", "create", "generate", "monitor", "track"]
+        analysis["action_verbs"] = [verb for verb in action_verbs if verb in words]
+
+        # Determine primary goal
+        if any(verb in words for verb in ["find", "search", "collect", "gather"]):
+            analysis["primary_goal"] = "data_collection"
+        elif any(verb in words for verb in ["analyze", "process", "summarize"]):
+            analysis["primary_goal"] = "data_processing"
+        elif any(verb in words for verb in ["create", "generate", "build"]):
+            analysis["primary_goal"] = "content_creation"
+        elif any(verb in words for verb in ["monitor", "track", "watch"]):
+            analysis["primary_goal"] = "monitoring"
+
+        # Identify data sources
+        if any(word in request_lower for word in ["news", "articles", "web", "website"]):
+            analysis["data_sources_needed"].append("web_content")
+        if any(word in request_lower for word in ["api", "service", "database"]):
+            analysis["data_sources_needed"].append("api_data")
+        if any(word in request_lower for word in ["social", "twitter", "facebook"]):
+            analysis["data_sources_needed"].append("social_media")
+
+        # Identify processing requirements
+        if any(word in request_lower for word in ["summarize", "summary", "brief"]):
+            analysis["processing_requirements"].append("text_summarization")
+        if any(word in request_lower for word in ["analyze", "analysis", "insights"]):
+            analysis["processing_requirements"].append("data_analysis")
+        if any(word in request_lower for word in ["filter", "select", "choose"]):
+            analysis["processing_requirements"].append("data_filtering")
+
+        # Determine quality criteria
+        if any(word in request_lower for word in ["best", "top", "highest", "quality"]):
+            analysis["quality_criteria"].append("high_quality_selection")
+        if any(word in request_lower for word in ["relevant", "related", "matching"]):
+            analysis["quality_criteria"].append("relevance_filtering")
+        if any(word in request_lower for word in ["recent", "latest", "new"]):
+            analysis["quality_criteria"].append("recency_priority")
+
+        # Estimate workflow complexity
+        complexity_indicators = len(analysis["action_verbs"]) + len(analysis["processing_requirements"])
+        if complexity_indicators <= 2:
+            analysis["workflow_complexity"] = "simple"
+            analysis["estimated_steps"] = 2-3
+        elif complexity_indicators <= 4:
+            analysis["workflow_complexity"] = "medium"
+            analysis["estimated_steps"] = 3-5
+        else:
+            analysis["workflow_complexity"] = "complex"
+            analysis["estimated_steps"] = 5-8
+
+        return json.dumps(analysis, indent=2)
+
+    def _save_workflow_file(self, input_data: str) -> str:
         """Save workflow to file"""
         try:
-            # Parse input: filename|workflow_json
             parts = input_data.split("|", 1)
             if len(parts) != 2:
                 return "Input format should be: filename|workflow_json"
@@ -286,113 +971,66 @@ Based on this tool result, please continue with your analysis and provide the fi
         except Exception as e:
             return f"Error saving workflow: {str(e)}"
 
-    def _get_workflow_template(self, query: str = "") -> str:
-        """Get the standard workflow template"""
-        template = {
-            "name": "Workflow Name",
-            "description": "Workflow description",
-            "version": "1.0.0",
-            "steps": [
-                {
-                    "node": "node-name",
-                    "inputs": {
-                        "input_field": "value or {{previous_step.output_field}}"
-                    }
-                },
-                {
-                    "assembly": {
-                        "output_field": {
-                            "action": "select_random|select_index|extract",
-                            "from": "source_field",
-                            "extract": "field_to_extract"
-                        }
-                    },
-                    "source": "previous_step_name",
-                    "name": "assembly_step_name",
-                    "description": "What this assembly step does"
-                }
-            ]
-        }
-
-        return json.dumps(template, indent=2)
-
-    def _analyze_assembly_needs(self, input_data: str) -> str:
-        """Analyze what assembly steps are needed between nodes"""
-        try:
-            # Parse input: source_node|target_node
-            parts = input_data.split("|")
-            if len(parts) != 2:
-                return "Input format should be: source_node|target_node"
-
-            source_node, target_node = parts
-
-            # Load node configurations
-            source_config_path = self.nodes_dir / source_node / "config.json"
-            target_config_path = self.nodes_dir / target_node / "config.json"
-
-            if not source_config_path.exists():
-                return f"Source node '{source_node}' config not found"
-
-            if not target_config_path.exists():
-                return f"Target node '{target_node}' config not found"
-
-            with open(source_config_path, 'r') as f:
-                source_config = json.load(f)
-
-            with open(target_config_path, 'r') as f:
-                target_config = json.load(f)
-
-            analysis = {
-                "source_node": source_node,
-                "target_node": target_node,
-                "source_outputs": source_config.get("output_schema", []),
-                "target_inputs": target_config.get("input_schema", {}),
-                "assembly_suggestions": []
-            }
-
-            # Analyze compatibility
-            target_required = target_config.get("input_schema", {}).get("required", [])
-            target_optional = target_config.get("input_schema", {}).get("optional", [])
-
-            for required_field in target_required:
-                if required_field not in source_config.get("output_schema", []):
-                    analysis["assembly_suggestions"].append(
-                        f"Required field '{required_field}' not directly available from {source_node}. "
-                        f"May need assembly step to extract or transform data."
-                    )
-
-            return json.dumps(analysis, indent=2)
-
-        except Exception as e:
-            return f"Error analyzing assembly needs: {str(e)}"
-
     def create_workflow(self, user_request: str) -> Dict[str, Any]:
-        """Main method to create a workflow from user request"""
+        """Advanced workflow creation with comprehensive analysis"""
         try:
-            # Add to conversation history
             self.conversation_history.append({"role": "user", "content": user_request})
 
-            # Extract keywords from user request for intelligent input customization
-            keywords = self._extract_keywords_from_request(user_request)
+            # Create comprehensive system message
+            system_message = self._get_advanced_system_prompt()
 
-            # Create the workflow directly based on available nodes
-            workflow_json = self._create_workflow_from_request(user_request, keywords)
+            # Create detailed user message with analysis instructions
+            user_message = f"""
+USER REQUEST: "{user_request}"
+
+TASK: Create a perfect workflow that accomplishes this user's goal using the available Orchestra nodes.
+
+PROCESS:
+1. Use discover_all_nodes to understand ALL available nodes and their capabilities
+2. Use analyze_user_requirements to deeply understand what the user needs
+3. Select the OPTIMAL nodes for this specific request (not just the example nodes)
+4. Use analyze_node_compatibility to ensure proper data flow between selected nodes
+5. Use generate_assembly_logic to create intelligent data transformations
+6. Create the complete workflow JSON with perfect assembly logic
+7. Use validate_workflow_structure to ensure everything is correct
+
+CRITICAL REQUIREMENTS:
+- The workflow must use the BEST available nodes for this specific request
+- Assembly steps must intelligently transform data based on user intent
+- Every input must have a valid data source
+- The final output must perfectly match what the user requested
+
+Create a workflow that would work with ANY available nodes, not just the current examples.
+"""
+
+            messages = [
+                SystemMessage(content=system_message),
+                HumanMessage(content=user_message)
+            ]
+
+            initial_response = self.llm.invoke(messages)
+            final_response = self._process_agent_response(initial_response.content)
+
+            # Extract workflow JSON from response
+            workflow_json = self._extract_workflow_json(final_response)
 
             if workflow_json:
-                # Add to conversation history
-                self.conversation_history.append({"role": "assistant", "content": f"Created workflow: {workflow_json['name']}"})
+                self.conversation_history.append({
+                    "role": "assistant", 
+                    "content": final_response
+                })
 
                 return {
                     "success": True,
-                    "response": f"I've created a workflow called '{workflow_json['name']}' that will:\n\n1. Search for news articles about {', '.join(keywords)}\n2. Select a relevant article about AI company funding\n3. Scrape the full article content\n4. Generate an AI summary\n\nThe workflow is ready to save and execute!",
+                    "response": final_response,
                     "workflow_json": workflow_json,
                     "conversation_history": self.conversation_history
                 }
             else:
                 return {
                     "success": False,
-                    "error": "Could not create workflow from request",
-                    "response": "I couldn't create a workflow for your request. Please try rephrasing it.",
+                    "error": "Could not extract valid workflow JSON from response",
+                    "response": final_response,
                     "conversation_history": self.conversation_history
                 }
 
@@ -404,483 +1042,76 @@ Based on this tool result, please continue with your analysis and provide the fi
                 "conversation_history": self.conversation_history
             }
 
-    def _extract_keywords_from_request(self, user_request: str) -> List[str]:
-        """Extract comprehensive keywords from ANY user request using intelligent analysis"""
-        return self._extract_all_relevant_keywords(user_request)
-
-    def _create_workflow_from_request(self, user_request: str, keywords: List[str]) -> Optional[Dict[str, Any]]:
-        """Create workflow JSON from ANY user request using ANY available nodes"""
+    def _extract_workflow_json(self, response: str) -> Optional[Dict[str, Any]]:
+        """Extract workflow JSON from agent response"""
         try:
-            # 1. DISCOVER ALL AVAILABLE NODES DYNAMICALLY
-            available_nodes = self._discover_available_nodes()
-            if not available_nodes:
-                print("No nodes available for workflow creation")
-                return self._create_fallback_workflow(user_request, keywords)
-
-            # 2. ANALYZE USER REQUEST TO DETERMINE NEEDED CAPABILITIES
-            required_capabilities = self._analyze_required_capabilities(user_request)
-
-            # 3. INTELLIGENTLY SELECT NODES THAT MATCH USER NEEDS
-            selected_nodes = self._select_optimal_nodes(available_nodes, required_capabilities, user_request)
-
-            # 4. DETERMINE OPTIMAL NODE SEQUENCE
-            node_sequence = self._determine_node_sequence(selected_nodes, user_request)
-
-            # 5. CREATE WORKFLOW WITH INTELLIGENT ASSEMBLY
-            workflow = {
-                "name": self._generate_workflow_name(user_request),
-                "description": f"AI-generated workflow: {user_request}",
-                "version": "1.0.0",
-                "created_by": "Orchestra AI Agent",
-                "user_request": user_request,
-                "steps": []
-            }
-
-            # 6. BUILD WORKFLOW STEPS DYNAMICALLY
-            for i, node_info in enumerate(node_sequence):
-                # Add node step
-                node_step = self._create_node_step(node_info, user_request, keywords, i)
-                workflow["steps"].append(node_step)
-
-                # Add assembly step if not the last node
-                if i < len(node_sequence) - 1:
-                    next_node = node_sequence[i + 1]
-                    assembly_step = self._create_intelligent_assembly_step(
-                        node_info, next_node, user_request, i
-                    )
-                    if assembly_step:
-                        workflow["steps"].append(assembly_step)
-
-            # 7. VALIDATE AND RETURN
-            import json
-            try:
-                json.dumps(workflow)  # Test if it's valid JSON
-                return workflow
-            except (TypeError, ValueError) as e:
-                print(f"JSON validation error: {e}")
-                return self._create_fallback_workflow(user_request, keywords)
-
+            # Look for JSON blocks in the response
+            import re
+            
+            # Try to find JSON between ```json and ``` or { and }
+            json_patterns = [
+                r'```json\s*(\{.*?\})\s*```',
+                r'```\s*(\{.*?\})\s*```',
+                r'(\{[^{}]*"steps"[^{}]*\[.*?\][^{}]*\})'
+            ]
+            
+            for pattern in json_patterns:
+                matches = re.findall(pattern, response, re.DOTALL)
+                for match in matches:
+                    try:
+                        workflow = json.loads(match)
+                        if "steps" in workflow:
+                            return workflow
+                    except json.JSONDecodeError:
+                        continue
+            
+            # If no JSON blocks found, try to extract the largest JSON-like structure
+            brace_count = 0
+            start_idx = -1
+            
+            for i, char in enumerate(response):
+                if char == '{':
+                    if brace_count == 0:
+                        start_idx = i
+                    brace_count += 1
+                elif char == '}':
+                    brace_count -= 1
+                    if brace_count == 0 and start_idx != -1:
+                        try:
+                            potential_json = response[start_idx:i+1]
+                            workflow = json.loads(potential_json)
+                            if "steps" in workflow:
+                                return workflow
+                        except json.JSONDecodeError:
+                            continue
+            
+            return None
+            
         except Exception as e:
-            print(f"Error creating workflow: {e}")
-            return self._create_fallback_workflow(user_request, keywords)
-
-    def _analyze_user_requirements(self, user_request: str) -> Dict[str, Any]:
-        """Intelligently analyze ANY user request to determine workflow requirements"""
-        request_lower = user_request.lower()
-
-        # Extract ALL keywords and concepts from the request
-        import re
-        words = re.findall(r'\b\w+\b', request_lower)
-
-        # Dynamic analysis based on content
-        analysis = {
-            "workflow_name": self._generate_workflow_name(user_request),
-            "description": f"AI-generated workflow: {user_request[:100]}...",
-            "max_articles": self._determine_article_count(user_request),
-            "time_period": self._determine_time_period(user_request),
-            "selection_criteria": self._generate_selection_criteria(user_request),
-            "processing_instructions": self._generate_processing_instructions(user_request),
-            "keyword_filters": self._extract_all_relevant_keywords(user_request),
-            "output_format": self._determine_output_format(user_request)
-        }
-
-        return analysis
-
-    def _generate_workflow_name(self, request: str) -> str:
-        """Generate intelligent workflow name from ANY request"""
-        request_lower = request.lower()
-
-        # Extract main action verbs and nouns
-        action_words = ["monitor", "track", "analyze", "summarize", "collect", "process", "generate", "create"]
-        subject_words = ["news", "articles", "data", "content", "information", "reports", "summaries"]
-
-        found_actions = [word for word in action_words if word in request_lower]
-        found_subjects = [word for word in subject_words if word in request_lower]
-
-        if found_actions and found_subjects:
-            return f"AI {found_actions[0].title()} {found_subjects[0].title()} Workflow"
-        else:
-            return "Custom AI Automation Workflow"
-
-    def _determine_article_count(self, request: str) -> int:
-        """Intelligently determine how many articles to process"""
-        request_lower = request.lower()
-
-        # Look for quantity indicators
-        if any(word in request_lower for word in ["few", "couple", "2", "3"]):
-            return 3
-        elif any(word in request_lower for word in ["many", "several", "bunch", "10", "lots"]):
-            return 10
-        elif any(word in request_lower for word in ["comprehensive", "extensive", "thorough"]):
-            return 15
-        else:
-            return 5  # Default
-
-    def _determine_time_period(self, request: str) -> str:
-        """Intelligently determine time period from request"""
-        request_lower = request.lower()
-
-        if any(word in request_lower for word in ["today", "recent", "latest", "current"]):
-            return "Last 24 hours"
-        elif any(word in request_lower for word in ["week", "weekly", "7 days"]):
-            return "Last 7 days"
-        elif any(word in request_lower for word in ["month", "monthly", "30 days"]):
-            return "Last 30 days"
-        else:
-            return "Last 24 hours"  # Default
-
-    def _generate_selection_criteria(self, request: str) -> str:
-        """Generate intelligent selection criteria for ANY request"""
-        keywords = self._extract_all_relevant_keywords(request)
-
-        if len(keywords) > 0:
-            return f"Select articles most relevant to: {', '.join(keywords[:3])}"
-        else:
-            return "Select the most relevant and high-quality articles"
-
-    def _generate_processing_instructions(self, request: str) -> str:
-        """Generate processing instructions based on user intent"""
-        request_lower = request.lower()
-
-        if any(word in request_lower for word in ["summary", "summarize", "brief"]):
-            return "Create concise, informative summaries highlighting key points"
-        elif any(word in request_lower for word in ["analysis", "analyze", "insights"]):
-            return "Perform deep analysis and extract valuable insights"
-        elif any(word in request_lower for word in ["newsletter", "email", "report"]):
-            return "Format content for newsletter/report distribution"
-        elif any(word in request_lower for word in ["research", "investigate"]):
-            return "Conduct thorough research analysis and compile findings"
-        else:
-            return "Process content according to user requirements and extract valuable information"
-
-    def _extract_all_relevant_keywords(self, request: str) -> List[str]:
-        """Extract ALL relevant keywords from ANY request"""
-        request_lower = request.lower()
-        keywords = []
-
-        # Technology keywords
-        tech_keywords = ["AI", "artificial intelligence", "machine learning", "technology", "tech", "digital", "automation", "robotics", "data science"]
-        keywords.extend([kw for kw in tech_keywords if kw.lower() in request_lower])
-
-        # Industry keywords
-        industry_keywords = ["healthcare", "finance", "education", "retail", "manufacturing", "automotive", "energy", "agriculture"]
-        keywords.extend([kw for kw in industry_keywords if kw.lower() in request_lower])
-
-        # Business keywords
-        business_keywords = ["startup", "funding", "investment", "company", "business", "enterprise", "innovation", "market"]
-        keywords.extend([kw for kw in business_keywords if kw.lower() in request_lower])
-
-        # Extract any quoted phrases or specific terms
-        import re
-        quoted_terms = re.findall(r'"([^"]*)"', request)
-        keywords.extend(quoted_terms)
-
-        # If no specific keywords found, use general terms
-        if not keywords:
-            keywords = ["technology", "innovation", "business"]
-
-        return list(set(keywords))  # Remove duplicates
-
-    def _determine_output_format(self, request: str) -> str:
-        """Determine desired output format"""
-        request_lower = request.lower()
-
-        if any(word in request_lower for word in ["json", "structured", "data"]):
-            return "structured_json"
-        elif any(word in request_lower for word in ["markdown", "formatted"]):
-            return "markdown"
-        elif any(word in request_lower for word in ["plain", "simple", "text"]):
-            return "plain_text"
-        else:
-            return "formatted_summary"
-
-    def _discover_available_nodes(self) -> List[Dict[str, Any]]:
-        """Dynamically discover all available nodes and their capabilities"""
-        try:
-            nodes_info_str = self._discover_nodes("")
-            nodes_info = json.loads(nodes_info_str)
-            return nodes_info
-        except Exception as e:
-            print(f"Error discovering nodes: {e}")
-            return []
-
-    def _analyze_required_capabilities(self, user_request: str) -> Dict[str, Any]:
-        """Analyze user request to determine what capabilities are needed"""
-        request_lower = user_request.lower()
-
-        capabilities = {
-            "data_sources": [],
-            "processing_types": [],
-            "output_formats": [],
-            "data_transformations": []
-        }
-
-        # Detect data source needs
-        if any(word in request_lower for word in ["news", "articles", "scrape", "web", "website"]):
-            capabilities["data_sources"].append("web_scraping")
-        if any(word in request_lower for word in ["google", "search", "news"]):
-            capabilities["data_sources"].append("google_news")
-        if any(word in request_lower for word in ["database", "sql", "data"]):
-            capabilities["data_sources"].append("database")
-        if any(word in request_lower for word in ["api", "rest", "http"]):
-            capabilities["data_sources"].append("api")
-
-        # Detect processing needs
-        if any(word in request_lower for word in ["analyze", "process", "ai", "llm", "summary"]):
-            capabilities["processing_types"].append("ai_processing")
-        if any(word in request_lower for word in ["transform", "convert", "format"]):
-            capabilities["processing_types"].append("data_transformation")
-        if any(word in request_lower for word in ["filter", "select", "choose"]):
-            capabilities["processing_types"].append("data_filtering")
-
-        return capabilities
-
-    def _select_optimal_nodes(self, available_nodes: List[Dict], capabilities: Dict, user_request: str) -> List[Dict]:
-        """Intelligently select which nodes to use based on capabilities needed"""
-        selected_nodes = []
-        request_lower = user_request.lower()
-
-        # Match nodes to required capabilities
-        for node in available_nodes:
-            node_name = node.get("node_name", "")
-            node_desc = node.get("description", "").lower()
-
-            # Smart matching based on node purpose and user needs
-            should_include = False
-
-            # Data source matching
-            if "data_sources" in capabilities:
-                if "web_scraping" in capabilities["data_sources"] and "scraper" in node_name:
-                    should_include = True
-                if "google_news" in capabilities["data_sources"] and "google" in node_name:
-                    should_include = True
-
-            # Processing matching
-            if "processing_types" in capabilities:
-                if "ai_processing" in capabilities["processing_types"] and any(
-                    word in node_desc for word in ["ai", "process", "llm", "openrouter"]
-                ):
-                    should_include = True
-
-            # Keyword matching
-            for keyword in self._extract_all_relevant_keywords(user_request):
-                if keyword.lower() in node_desc or keyword.lower() in node_name:
-                    should_include = True
-
-            if should_include:
-                selected_nodes.append(node)
-
-        # If no nodes selected, try to use any available nodes intelligently
-        if not selected_nodes and available_nodes:
-            # Use first available data source node
-            for node in available_nodes:
-                if any(word in node.get("node_name", "") for word in ["scraper", "source", "fetch"]):
-                    selected_nodes.append(node)
-                    break
-
-            # Use first available processing node
-            for node in available_nodes:
-                if any(word in node.get("description", "").lower() for word in ["process", "ai", "transform"]):
-                    selected_nodes.append(node)
-                    break
-
-        return selected_nodes
-
-    def _determine_node_sequence(self, selected_nodes: List[Dict], user_request: str) -> List[Dict]:
-        """Determine the optimal sequence of nodes to achieve user's goal"""
-        if not selected_nodes:
-            return []
-
-        # Smart ordering based on typical data flow patterns
-        ordered_nodes = []
-
-        # 1. Data source nodes first (scrapers, fetchers)
-        source_nodes = [n for n in selected_nodes if any(
-            word in n.get("node_name", "") for word in ["scraper", "fetch", "source", "google"]
-        )]
-        ordered_nodes.extend(source_nodes)
-
-        # 2. Processing nodes next (transformers, processors)  
-        processing_nodes = [n for n in selected_nodes if any(
-            word in n.get("description", "").lower() for word in ["process", "transform", "ai"]
-        ) and n not in ordered_nodes]
-        ordered_nodes.extend(processing_nodes)
-
-        # 3. Any remaining nodes
-        remaining_nodes = [n for n in selected_nodes if n not in ordered_nodes]
-        ordered_nodes.extend(remaining_nodes)
-
-        return ordered_nodes
-
-    def _create_node_step(self, node_info: Dict, user_request: str, keywords: List[str], step_index: int) -> Dict[str, Any]:
-        """Create a node step with intelligent input customization"""
-        node_name = node_info.get("node_name", "")
-        input_schema = node_info.get("input_schema", {})
-
-        # Build inputs intelligently based on node type and user request
-        inputs = {}
-
-        # Handle required inputs
-        required_fields = input_schema.get("required", [])
-        for field in required_fields:
-            if step_index == 0:
-                # First node - use user-derived inputs
-                inputs[field] = self._generate_input_value(field, user_request, keywords, node_info)
-            else:
-                # Later nodes - use variable substitution from previous steps
-                inputs[field] = f"{{{{step_{step_index-1}.{self._guess_output_field(field)}}}}}"
-
-        # Handle optional inputs that might be useful
-        optional_fields = input_schema.get("optional", [])
-        for field in optional_fields:
-            if self._should_include_optional_field(field, user_request):
-                inputs[field] = self._generate_input_value(field, user_request, keywords, node_info)
-
-        return {
-            "node": node_name,
-            "inputs": inputs
-        }
-
-    def _create_intelligent_assembly_step(self, current_node: Dict, next_node: Dict, user_request: str, step_index: int) -> Optional[Dict[str, Any]]:
-        """Create intelligent assembly step between nodes"""
-        current_outputs = current_node.get("output_schema", [])
-        next_inputs = next_node.get("input_schema", {}).get("required", [])
-
-        if not current_outputs or not next_inputs:
+            print(f"Error extracting workflow JSON: {e}")
             return None
 
-        assembly_config = {}
-
-        # Create intelligent mappings
-        for next_input in next_inputs:
-            best_output = self._find_best_output_match(next_input, current_outputs, user_request)
-            if best_output:
-                assembly_config[f"mapped_{next_input}"] = {
-                    "action": "intelligent_select" if "select" in user_request.lower() else "extract",
-                    "from": best_output,
-                    "extract": next_input,
-                    "fallback_strategy": "try_alternatives",
-                    "quality_check": True
-                }
-
-        if assembly_config:
-            return {
-                "assembly": assembly_config,
-                "source": current_node.get("node_name"),
-                "name": f"intelligent_assembly_{step_index}",
-                "description": f"🤖 AI ASSEMBLY: Smart data transformation for {user_request[:50]}..."
-            }
-
-        return None
-
-    def _generate_input_value(self, field_name: str, user_request: str, keywords: List[str], node_info: Dict) -> Any:
-        """Generate intelligent input values based on field name and context"""
-        field_lower = field_name.lower()
-
-        # API keys and tokens
-        if "api" in field_lower and "key" in field_lower:
-            if "openrouter" in field_lower:
-                return "your-openrouter-key-here"
-            elif "apify" in field_lower:
-                return "your-apify-token-here"
-            else:
-                return "your-api-key-here"
-
-        # Keywords
-        if "keyword" in field_lower:
-            return keywords[:5] if keywords else ["technology", "innovation"]
-
-        # URLs
-        if "url" in field_lower:
-            return "{{previous_step.url}}"
-
-        # Counts and limits
-        if any(word in field_lower for word in ["max", "limit", "count"]):
-            if "news" in user_request.lower():
-                return 5
-            return 10
-
-        # Time periods
-        if "time" in field_lower or "period" in field_lower:
-            if "recent" in user_request.lower():
-                return "Last 24 hours"
-            return "Last 7 days"
-
-        # Boolean values
-        if "headless" in field_lower:
-            return True
-
-        # Default string value
-        return f"auto-generated-{field_name}"
-
-    def _should_include_optional_field(self, field_name: str, user_request: str) -> bool:
-        """Determine if an optional field should be included"""
-        field_lower = field_name.lower()
-        request_lower = user_request.lower()
-
-        # Include fields that seem relevant to the request
-        if any(word in request_lower for word in field_lower.split("_")):
-            return True
-
-        # Include common useful fields
-        if field_lower in ["headless", "extract_descriptions", "output_format"]:
-            return True
-
-        return False
-
-    def _guess_output_field(self, input_field: str) -> str:
-        """Guess likely output field name for variable substitution"""
-        field_lower = input_field.lower()
-
-        if "url" in field_lower:
-            return "url"
-        elif "text" in field_lower:
-            return "text"
-        elif "content" in field_lower:
-            return "content"
-        elif "data" in field_lower:
-            return "data"
-        else:
-            return "output"
-
-    def _find_best_output_match(self, input_field: str, available_outputs: List[str], user_request: str) -> Optional[str]:
-        """Find the best matching output field for an input field"""
-        input_lower = input_field.lower()
-
-        # Direct name matching
-        for output in available_outputs:
-            if input_lower == output.lower():
-                return output
-
-        # Semantic matching
-        for output in available_outputs:
-            output_lower = output.lower()
-            if any(word in output_lower for word in input_lower.split("_")):
-                return output
-
-        # Fallback to first available output
-        return available_outputs[0] if available_outputs else None
-
     def improve_workflow(self, workflow_json: str, feedback: str) -> Dict[str, Any]:
-        """Improve an existing workflow based on feedback"""
+        """Improve workflow based on feedback"""
         try:
-            system_message = """
-You have created this workflow:
-"""
+            system_message = self._get_advanced_system_prompt()
 
             user_message = f"""
-Workflow: {workflow_json}
+CURRENT WORKFLOW: {workflow_json}
 
-The user provided this feedback:
-{feedback}
+USER FEEDBACK: "{feedback}"
 
-Please improve the workflow based on the feedback. Use your tools to:
-1. Understand what needs to be changed
-2. Analyze if new assembly steps are needed
-3. Validate the improved workflow
-4. Provide the updated workflow JSON
+TASK: Improve this workflow based on the user's feedback.
 
-Focus on making the workflow more intelligent and efficient based on the feedback.
+PROCESS:
+1. Analyze the current workflow structure and logic
+2. Understand what the user wants changed/improved
+3. Use your tools to analyze better node combinations if needed
+4. Create improved assembly logic based on feedback
+5. Validate the improved workflow
+6. Provide the updated workflow JSON
+
+Focus on making the workflow more intelligent and better aligned with user expectations.
 """
 
             messages = [
@@ -908,21 +1139,20 @@ Focus on making the workflow more intelligent and efficient based on the feedbac
     def explain_workflow(self, workflow_json: str) -> Dict[str, Any]:
         """Explain how a workflow works"""
         try:
-            system_message = """
-Please explain this Orchestra workflow in detail:
-"""
+            system_message = self._get_advanced_system_prompt()
 
             user_message = f"""
-Workflow to explain: {workflow_json}
+WORKFLOW TO EXPLAIN: {workflow_json}
 
-Use your node discovery tool to understand what each node does, then explain:
-1. What this workflow accomplishes overall
-2. What each step does and why it's needed
-3. How data flows between steps
-4. What the assembly steps accomplish
-5. What the final output will be
+TASK: Provide a comprehensive explanation of this workflow.
 
-Make it clear and understandable for both technical and non-technical users.
+Use your tools to:
+1. Analyze each node used in the workflow
+2. Understand the data flow between steps
+3. Explain the assembly logic and transformations
+4. Describe what the final output will be
+
+Provide a clear explanation that both technical and non-technical users can understand.
 """
 
             messages = [
