@@ -261,30 +261,6 @@ Based on this tool result, please continue with your analysis and provide the fi
             ]
         }
 
-                        # Check if node exists
-                        node_name = step["node"]
-                        node_path = self.nodes_dir / node_name
-                        if not node_path.exists():
-                            errors.append(f"Step {i+1}: Node '{node_name}' does not exist")
-
-                    elif "assembly" in step:
-                        # Assembly step validation
-                        if "source" not in step:
-                            errors.append(f"Step {i+1}: Assembly step missing 'source' field")
-
-                    else:
-                        errors.append(f"Step {i+1}: Must contain either 'node' or 'assembly' field")
-
-            if errors:
-                return f"Validation errors: {'; '.join(errors)}"
-            else:
-                return "Workflow validation passed"
-
-        except json.JSONDecodeError as e:
-            return f"Invalid JSON: {str(e)}"
-        except Exception as e:
-            return f"Validation error: {str(e)}"
-
     def _save_workflow(self, input_data: str) -> str:
         """Save workflow to file"""
         try:
