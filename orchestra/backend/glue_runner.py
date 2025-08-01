@@ -7,6 +7,7 @@ import subprocess
 import sys
 import os
 import re
+import time
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 
@@ -21,6 +22,8 @@ class OrchestraGlueRunner:
             self.nodes_dir = Path(nodes_dir)
         
         self.execution_memory = {}
+        self.retry_attempts = {}
+        self.max_retries = 3
         
     def load_node_config(self, node_name: str) -> Dict[str, Any]:
         """Load configuration for a specific node"""
@@ -128,6 +131,97 @@ class OrchestraGlueRunner:
         
         return result
     
+    def _validate_node_output(self, node_name: str, output: Dict[str, Any]) -> Dict[str, Any]:
+        """Validate node output and determine if it's usable"""
+        validation = {
+            "is_valid": True,
+            "issues": [],
+            "retry_recommended": False,
+            "alternative_strategy": None
+        }
+        
+        # Check for explicit error indicators
+        if output.get("success") is False or "error" in output:
+            validation["is_valid"] = False
+            validation["issues"].append(f"Node {node_name} reported failure")
+            validation["retry_recommended"] = True
+        
+        # Node-specific validation
+        if node_name == "google-news-scraper":
+            articles = output.get("articles", [])
+            if not articles or len(articles) == 0:
+                validation["is_valid"] = False
+                validation["issues"].append("No articles found")
+                validation["alternative_strategy"] = "try_different_keywords_or_time_period"
+        
+        elif node_name == "article-page-scraper":
+            article_text = output.get("article_text", "")
+            if not article_text or len(article_text.strip()) < 100:
+                validation["is_valid"] = False
+                validation["issues"].append(f"Insufficient article content: {len(article_text)} characters")
+                validation["retry_recommended"] = True
+                validation["alternative_strategy"] = "try_different_article_url"
+        
+        elif node_name == "article-processor":
+            summary = output.get("summary", "")
+            if not summary or len(summary.strip()) < 50:
+                validation["is_valid"] = False
+                validation["issues"].append("Summary too short or missing")
+                validation["retry_recommended"] = True
+        
+        return validation
+    
+    def _create_retry_strategy(self, node_name: str, original_inputs: Dict[str, Any], 
+                             validation: Dict[str, Any], attempt: int) -> Dict[str, Any]:
+        """Create intelligent retry strategy based on failure type"""
+        retry_inputs = original_inputs.copy()
+        
+        if node_name == "google-news-scraper":
+            if validation["alternative_strategy"] == "try_different_keywords_or_time_period":
+                # Expand time period for more results
+                current_period = retry_inputs.get("time_period", "Last 24 hours")
+                if current_period == "Last 24 hours":
+                    retry_inputs["time_period"] = "Last week"
+                elif current_period == "Last week":
+                    retry_inputs["time_period"] = "Last month"
+                
+                # Increase max_news for more options
+                retry_inputs["max_news"] = min(retry_inputs.get("max_news", 10) * 2, 50)
+        
+        elif node_name == "article-page-scraper":
+            if validation["alternative_strategy"] == "try_different_article_url":
+                # This will be handled by assembly step retry
+                pass
+        
+        return retry_inputs
+    
+    def _create_intelligent_assembly_retry(self, assembly_config: Dict[str, Any], 
+                                         source_data: Dict[str, Any], attempt: int) -> Dict[str, Any]:
+        """Create intelligent assembly retry strategy"""
+        retry_config = assembly_config.copy()
+        
+        for output_key, instruction in retry_config.items():
+            if isinstance(instruction, dict):
+                action = instruction.get("action")
+                
+                if action == "select_index":
+                    # Try next article in the list
+                    current_index = instruction.get("index", 0)
+                    new_index = current_index + attempt
+                    source_field = instruction.get("from")
+                    
+                    if source_field in source_data:
+                        items = source_data[source_field]
+                        if isinstance(items, list) and new_index < len(items):
+                            instruction["index"] = new_index
+                            print(f"   🔄 Retry: Trying article at index {new_index}")
+                
+                elif action == "select_random":
+                    # Random selection will naturally try different items
+                    print(f"   🔄 Retry: Attempting different random selection")
+        
+        return retry_config
+    
     def execute_node(self, node_name: str, inputs: Dict[str, Any]) -> Dict[str, Any]:
         """Execute a single node with given inputs"""
         node_dir = self.nodes_dir / node_name
@@ -165,6 +259,50 @@ class OrchestraGlueRunner:
         except Exception as e:
             raise RuntimeError(f"Failed to execute node {node_name}: {str(e)}")
     
+    def execute_node_with_retry(self, node_name: str, inputs: Dict[str, Any]) -> Dict[str, Any]:
+        """Execute node with intelligent retry logic"""
+        retry_key = f"{node_name}_{hash(str(inputs))}"
+        attempt = self.retry_attempts.get(retry_key, 0)
+        
+        while attempt < self.max_retries:
+            try:
+                print(f"   🔄 Attempt {attempt + 1}/{self.max_retries} for {node_name}")
+                
+                # Execute the node
+                output = self.execute_node(node_name, inputs)
+                
+                # Validate output quality
+                validation = self._validate_node_output(node_name, output)
+                
+                if validation["is_valid"]:
+                    print(f"   ✅ {node_name} succeeded with valid output")
+                    return output
+                else:
+                    print(f"   ⚠️ {node_name} output validation failed: {validation['issues']}")
+                    
+                    if not validation["retry_recommended"] or attempt >= self.max_retries - 1:
+                        print(f"   ❌ No more retries for {node_name}")
+                        return output  # Return even if not ideal
+                    
+                    # Create retry strategy
+                    attempt += 1
+                    self.retry_attempts[retry_key] = attempt
+                    inputs = self._create_retry_strategy(node_name, inputs, validation, attempt)
+                    print(f"   🔄 Retrying {node_name} with modified inputs")
+                    time.sleep(2)  # Brief pause between retries
+                    
+            except Exception as e:
+                attempt += 1
+                self.retry_attempts[retry_key] = attempt
+                
+                if attempt >= self.max_retries:
+                    raise e
+                
+                print(f"   ⚠️ {node_name} failed, retrying... ({e})")
+                time.sleep(2)
+        
+        raise RuntimeError(f"Node {node_name} failed after {self.max_retries} attempts")
+    
     def run_workflow(self, workflow: Dict[str, Any]) -> Dict[str, Any]:
         """Execute a complete workflow"""
         if "steps" not in workflow:
@@ -198,7 +336,7 @@ class OrchestraGlueRunner:
                 
                 # Execute the node
                 try:
-                    node_output = self.execute_node(node_name, resolved_inputs)
+                    node_output = self.execute_node_with_retry(node_name, resolved_inputs)
                     
                     # Store results in memory for future steps
                     self.execution_memory[node_name] = node_output
@@ -222,8 +360,10 @@ class OrchestraGlueRunner:
                     source_data = self.execution_memory[source_step]
                     print(f"   📥 Source: {source_step}")
                     
-                    # Process assembly instructions
-                    assembled_data = self.process_assembly_step(assembly_config, source_data)
+                    # Process assembly instructions with retry logic
+                    assembled_data = self.process_assembly_step_with_retry(
+                        assembly_config, source_data, assembly_name
+                    )
                     
                     # Store assembled results
                     self.execution_memory[assembly_name] = assembled_data
@@ -244,6 +384,59 @@ class OrchestraGlueRunner:
             "results": results,
             "execution_memory": self.execution_memory
         }
+    
+    def process_assembly_step_with_retry(self, assembly_config: Dict[str, Any], 
+                                       source_data: Dict[str, Any], assembly_name: str) -> Dict[str, Any]:
+        """Process assembly step with intelligent retry for failed selections"""
+        retry_key = f"{assembly_name}_{hash(str(assembly_config))}"
+        attempt = self.retry_attempts.get(retry_key, 0)
+        
+        while attempt < self.max_retries:
+            try:
+                # Process assembly with current configuration
+                result = self.process_assembly_step(assembly_config, source_data)
+                
+                # Validate assembly result
+                if self._validate_assembly_output(result, assembly_config):
+                    return result
+                else:
+                    print(f"   ⚠️ Assembly {assembly_name} produced invalid result, retrying...")
+                    attempt += 1
+                    self.retry_attempts[retry_key] = attempt
+                    
+                    if attempt >= self.max_retries:
+                        print(f"   ❌ Assembly {assembly_name} failed after {self.max_retries} attempts")
+                        return result
+                    
+                    # Create retry strategy
+                    assembly_config = self._create_intelligent_assembly_retry(
+                        assembly_config, source_data, attempt
+                    )
+                    
+            except Exception as e:
+                attempt += 1
+                self.retry_attempts[retry_key] = attempt
+                
+                if attempt >= self.max_retries:
+                    raise e
+                
+                print(f"   ⚠️ Assembly {assembly_name} failed, retrying...")
+        
+        return self.process_assembly_step(assembly_config, source_data)
+    
+    def _validate_assembly_output(self, result: Dict[str, Any], assembly_config: Dict[str, Any]) -> bool:
+        """Validate that assembly output is usable"""
+        for output_key in assembly_config.keys():
+            if output_key not in result or not result[output_key]:
+                return False
+            
+            # Check for URL validity
+            if "url" in output_key.lower():
+                url = result[output_key]
+                if not isinstance(url, str) or not url.startswith(('http://', 'https://')):
+                    return False
+        
+        return True
     
     def list_available_nodes(self) -> List[Dict[str, Any]]:
         """List all available nodes with their configurations"""
