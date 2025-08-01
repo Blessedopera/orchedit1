@@ -335,10 +335,13 @@ REMEMBER:
                 workflow_json = self._ensure_proper_json_format(workflow_json)
                 
                 # Validate JSON syntax
-                if not self._validate_json_syntax(workflow_json):
+                try:
+                    # Test that the workflow can be properly serialized
+                    json.dumps(workflow_json, indent=2)
+                except (TypeError, ValueError) as e:
                     return {
                         "success": False,
-                        "error": "Generated workflow contains invalid JSON syntax",
+                        "error": f"Generated workflow contains invalid JSON syntax: {str(e)}",
                         "response": response
                     }
             
