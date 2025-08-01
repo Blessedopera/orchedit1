@@ -197,7 +197,29 @@ Based on this tool result, please continue with your analysis and provide the fi
                         if "inputs" not in step:
                             errors.append(f"Step {i+1}: Missing 'inputs' field")
 
+                        # Check if node exists
+                        node_name = step["node"]
+                        node_path = self.nodes_dir / node_name
+                        if not node_path.exists():
+                            errors.append(f"Step {i+1}: Node '{node_name}' does not exist")
 
+                    elif "assembly" in step:
+                        # Assembly step validation
+                        if "source" not in step:
+                            errors.append(f"Step {i+1}: Assembly step missing 'source' field")
+
+                    else:
+                        errors.append(f"Step {i+1}: Must contain either 'node' or 'assembly' field")
+
+            if errors:
+                return f"Validation errors: {'; '.join(errors)}"
+            else:
+                return "Workflow validation passed"
+
+        except json.JSONDecodeError as e:
+            return f"Invalid JSON: {str(e)}"
+        except Exception as e:
+            return f"Validation error: {str(e)}"
 
     def _create_fallback_workflow(self, user_request: str, keywords: List[str]) -> Dict[str, Any]:
         """Create a simple, guaranteed-valid workflow as fallback"""
@@ -813,7 +835,7 @@ Based on this tool result, please continue with your analysis and provide the fi
             return True
 
         # Default string value
-return f"auto-generated-{field_name}"
+        return f"auto-generated-{field_name}"
 
     def _should_include_optional_field(self, field_name: str, user_request: str) -> bool:
         """Determine if an optional field should be included"""
