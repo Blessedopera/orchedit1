@@ -242,66 +242,66 @@ def create_workflow_with_agent(user_request: str):
                 st.write(result["response"])
                 
                             # Check if workflow was generated
-                            if "workflow_json" in result and result["workflow_json"]:
-                                workflow_json = result["workflow_json"]
+                if "workflow_json" in result and result["workflow_json"]:
+                    workflow_json = result["workflow_json"]
+                    
+                    st.subheader("📋 Generated Workflow")
+                    st.json(workflow_json)
+                    
+                    # Save workflow option
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        default_filename = f"{workflow_json.get('name', 'workflow').lower().replace(' ', '_')}.json"
+                        filename = st.text_input("Filename:", default_filename, key=f"filename_{len(st.session_state.conversation_history)}")
+                    with col2:
+                        if st.button("💾 Save Workflow"):
+                            try:
+                                # Get absolute path to workflows directory
+                                import os
+                                current_file_dir = os.path.dirname(os.path.abspath(__file__))
+                                orchestra_root = os.path.dirname(current_file_dir)
+                                workflows_dir = os.path.join(orchestra_root, "workflows")
                                 
-                                st.subheader("📋 Generated Workflow")
-                                st.json(workflow_json)
+                                # Create directory if it doesn't exist
+                                os.makedirs(workflows_dir, exist_ok=True)
                                 
-                                # Save workflow option
-                                col1, col2 = st.columns(2)
-                                with col1:
-                                    default_filename = f"{workflow_json.get('name', 'workflow').lower().replace(' ', '_')}.json"
-                                    filename = st.text_input("Filename:", default_filename, key=f"filename_{len(st.session_state.conversation_history)}")
-                                with col2:
-                                    if st.button("💾 Save Workflow"):
-                                        try:
-                                            # Get absolute path to workflows directory
-                                            import os
-                                            current_file_dir = os.path.dirname(os.path.abspath(__file__))
-                                            orchestra_root = os.path.dirname(current_file_dir)
-                                            workflows_dir = os.path.join(orchestra_root, "workflows")
-                                            
-                                            # Create directory if it doesn't exist
-                                            os.makedirs(workflows_dir, exist_ok=True)
-                                            
-                                            # Save workflow
-                                            workflow_path = os.path.join(workflows_dir, filename)
-                                            with open(workflow_path, 'w') as f:
-                                                json.dump(workflow_json, f, indent=2)
-                                            
-                                            st.success(f"✅ Workflow saved to: {workflow_path}")
-                                            st.info("💡 **Next Steps:**\n1. Go to '🚀 Execute Workflows' tab\n2. Click 'Refresh Workflow List'\n3. Find your saved workflow\n4. Add API keys if needed\n5. Execute the workflow")
-                                            
-                                            # Clear all caches to force refresh
-                                            cache_keys = ['workflow_files_cache', 'workflows_dir_cache']
-                                            for key in cache_keys:
-                                                if key in st.session_state:
-                                                    del st.session_state[key]
-                                            
-                                            # Force immediate refresh
-                                            st.rerun()
-                                            
-                                        except Exception as e:
-                                            st.error(f"❌ Save failed: {str(e)}")
-                                            st.code(f"Error details: {traceback.format_exc()}")
-                                        
-                                        # Store in memory
-                                        st.session_state.workflow_memory.store_workflow(
-                                            workflow_json.get('name', 'Unnamed Workflow'),
-                                            workflow_json.get('description', ''),
-                                            user_request,
-                                            json.dumps(workflow_json)
-                                        )
+                                # Save workflow
+                                workflow_path = os.path.join(workflows_dir, filename)
+                                with open(workflow_path, 'w') as f:
+                                    json.dump(workflow_json, f, indent=2)
                                 
-                                # Store in conversation history
-                                st.session_state.conversation_history.append({
-                                    'request': user_request,
-                                    'response': result["response"],
-                                    'workflow_json': workflow_json
-                                })
-                            else:
-                                st.warning("⚠️ No workflow JSON was generated. Please try rephrasing your request.")
+                                st.success(f"✅ Workflow saved to: {workflow_path}")
+                                st.info("💡 **Next Steps:**\n1. Go to '🚀 Execute Workflows' tab\n2. Click 'Refresh Workflow List'\n3. Find your saved workflow\n4. Add API keys if needed\n5. Execute the workflow")
+                                
+                                # Clear all caches to force refresh
+                                cache_keys = ['workflow_files_cache', 'workflows_dir_cache']
+                                for key in cache_keys:
+                                    if key in st.session_state:
+                                        del st.session_state[key]
+                                
+                                # Force immediate refresh
+                                st.rerun()
+                                
+                            except Exception as e:
+                                st.error(f"❌ Save failed: {str(e)}")
+                                st.code(f"Error details: {traceback.format_exc()}")
+                            
+                            # Store in memory
+                            st.session_state.workflow_memory.store_workflow(
+                                workflow_json.get('name', 'Unnamed Workflow'),
+                                workflow_json.get('description', ''),
+                                user_request,
+                                json.dumps(workflow_json)
+                            )
+                    
+                    # Store in conversation history
+                    st.session_state.conversation_history.append({
+                        'request': user_request,
+                        'response': result["response"],
+                        'workflow_json': workflow_json
+                    })
+                else:
+                    st.warning("⚠️ No workflow JSON was generated. Please try rephrasing your request.")
                 
             else:
                 st.error(f"❌ Failed to create workflow: {result.get('error', 'Unknown error')}")

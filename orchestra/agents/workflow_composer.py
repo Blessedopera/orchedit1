@@ -530,26 +530,6 @@ Based on this tool result, please continue with your analysis and provide the fi
             analysis["time_period"] = "Last 24 hours"
         
         return analysis
-            
-            # Process any tool calls
-            final_response = self._process_agent_response(initial_response.content)
-            
-            # Add to conversation history
-            self.conversation_history.append({"role": "assistant", "content": final_response})
-            
-            return {
-                "success": True,
-                "response": final_response,
-                "conversation_history": self.conversation_history
-            }
-        
-        except Exception as e:
-            return {
-                "success": False,
-                "error": str(e),
-                "response": f"Failed to create workflow: {str(e)}",
-                "conversation_history": self.conversation_history
-            }
     
     def improve_workflow(self, workflow_json: str, feedback: str) -> Dict[str, Any]:
         """Improve an existing workflow based on feedback"""
