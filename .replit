@@ -3,6 +3,7 @@ run = "node index.js"
 
 [nix]
 channel = "stable-25_05"
+packages = ["bash", "gitFull", "playwright-driver"]
 
 [deployment]
 run = ["sh", "-c", "node index.js"]
