@@ -1,16 +1,16 @@
 {
-  "name": "AI Finance News Analysis",
-  "description": "Uses actual available nodes to find AI finance news and create summaries",
+  "name": "Hollywood Summer Movie Analysis",
+  "description": "Analyzes Hollywood summer movie news and provides summaries",
   "version": "1.0.0",
-  "created_by": "Orchestra AI Agent - Fixed Version",
-  "user_request": "I want AI to check the latest articles about AI being used in finance, select the article you think is most interesting and show me a summary of it",
+  "created_by": "Orchestra AI Agent - Variable Fix",
+  "user_request": "Find the latest news articles about Hollywood and how the summer season is doing with all the films released then select the article you think is most interesting and summarize it for me",
   "steps": [
     {
       "node": "google-news-scraper",
       "inputs": {
         "api_token": "your-apify-token-here",
-        "keywords": ["AI finance", "artificial intelligence banking", "fintech AI", "machine learning finance"],
-        "max_news": 10,
+        "keywords": ["Hollywood summer movies", "summer box office", "movie releases", "film industry summer"],
+        "max_news": 8,
         "time_period": "Last 24 hours",
         "region_code": "United States (English)",
         "extract_descriptions": true
@@ -23,18 +23,18 @@
           "from": "articles",
           "extract": "url",
           "index": 0,
-          "description": "Select the first article (most recent/relevant)"
+          "description": "Select the first (most recent) Hollywood summer movie article"
         }
       },
       "source": "google-news-scraper",
       "name": "article_selector",
-      "description": "Select the most recent AI finance article for detailed analysis"
+      "description": "Select the most recent Hollywood summer movie article for detailed analysis"
     },
     {
       "node": "article-page-scraper",
       "inputs": {
         "url": "{{article_selector.selected_article_url}}",
-        "output_filename": "ai_finance_article.html",
+        "output_filename": "hollywood_summer_article.html",
         "headless": true,
         "wait_time": 3000
       }
@@ -56,7 +56,7 @@
         "article_text": "{{text_extractor.clean_article_text}}",
         "openrouter_api_key": "your-openrouter-key-here",
         "model": "qwen/qwen3-coder:free",
-        "max_tokens": 500,
+        "max_tokens": 600,
         "temperature": 0.3
       }
     }

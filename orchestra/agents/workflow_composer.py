@@ -148,12 +148,29 @@ class WorkflowComposerAgent:
         workflow_prompt = f"""
 You are an expert workflow architect for the Orchestra automation system. Your job is to create a PERFECT workflow JSON that uses ONLY the available nodes to fulfill the user's request.
 
+## CRITICAL VARIABLE SUBSTITUTION RULES:
+1. **ASSEMBLY STEP NAMES MUST MATCH VARIABLE REFERENCES**
+   - If you create assembly step named "article_selector", variables must use "{{article_selector.field_name}}"
+   - If you create output field "selected_url", reference it as "{{step_name.selected_url}}"
+   - NEVER create variables that don't match actual step names and output fields
+
+2. **ASSEMBLY OUTPUT FIELDS MUST BE USED CORRECTLY**
+   - Assembly step creates: {{"selected_url": {{"action": "select_index", "from": "articles", "extract": "url"}}}}
+   - Next step references: "{{assembly_step_name.selected_url}}"
+   - The field name after the dot MUST match the assembly output field name
+
+3. **VALIDATE EVERY VARIABLE REFERENCE**
+   - Before using "{{step_name.field}}", ensure step_name exists and produces field
+   - Check that assembly steps create the exact fields referenced later
+   - Trace data flow: Node Output → Assembly Transform → Next Node Input
+
 ## CRITICAL REQUIREMENTS:
 1. **ONLY USE AVAILABLE NODES** - Never invent nodes that don't exist
 2. **USE EXACT INPUT FIELD NAMES AND DATA TYPES** - Match the input_schema exactly with correct data types
 3. **FOLLOW EXAMPLE INPUT FORMATS** - Use the exact same data structure as shown in examples
-4. **CHAIN OUTPUTS TO INPUTS CORRECTLY** - Use proper variable substitution
+4. **CHAIN OUTPUTS TO INPUTS CORRECTLY** - Use proper variable substitution with EXACT step names
 5. **CREATE SMART ASSEMBLY LOGIC** - Transform data between nodes intelligently
+6. **VALIDATE VARIABLE CHAINS** - Ensure every {{variable}} reference actually exists
 
 ## DATA TYPE REQUIREMENTS:
 - If example shows `"keywords": ["AI", "tech"]` → ALWAYS use array format: `["keyword1", "keyword2"]`
@@ -162,6 +179,48 @@ You are an expert workflow architect for the Orchestra automation system. Your j
 - If example shows `"api_token": "your-token"` → Use string format
 
 ## CRITICAL: MATCH EXACT DATA TYPES FROM EXAMPLES!
+
+## VARIABLE SUBSTITUTION EXAMPLES (CORRECT):
+```json
+// Step 1: Node produces output
+{{"node": "google-news-scraper", "inputs": {{...}}}}
+// This creates: google-news-scraper.articles (array of article objects)
+
+// Step 2: Assembly transforms data  
+{{
+  "assembly": {{
+    "selected_article_url": {{
+      "action": "select_index",
+      "from": "articles", 
+      "extract": "url",
+      "index": 0
+    }}
+  }},
+  "source": "google-news-scraper",
+  "name": "article_selector"
+}}
+// This creates: article_selector.selected_article_url (string URL)
+
+// Step 3: Next node uses the data
+{{
+  "node": "article-page-scraper",
+  "inputs": {{
+    "url": "{{article_selector.selected_article_url}}"  // CORRECT REFERENCE
+  }}
+}}
+```
+
+## VARIABLE SUBSTITUTION EXAMPLES (WRONG - DON'T DO THIS):
+```json
+// ❌ WRONG: Creating variable that doesn't exist
+"url": "{{url_extractor.selected_url}}"  // No step named "url_extractor"
+
+// ❌ WRONG: Field name doesn't match assembly output
+"url": "{{article_selector.url}}"  // Assembly creates "selected_article_url", not "url"
+
+// ❌ WRONG: Using node output directly without assembly
+"article_text": "{{google-news-scraper.articles}}"  // articles is array, need single article
+```
 
 ## AVAILABLE NODES AND THEIR EXACT SCHEMAS:
 {node_info}
@@ -173,14 +232,20 @@ You are an expert workflow architect for the Orchestra automation system. Your j
 Create a complete workflow JSON that:
 1. Uses ONLY the available nodes listed above
 2. Uses the EXACT input field names from each node's schema
-3. Creates proper assembly steps to transform data between nodes
+3. Creates proper assembly steps with CORRECT variable references
 4. Fulfills the user's request completely
+5. VALIDATES that every {{variable}} reference actually exists
 
 ## ASSEMBLY ACTIONS AVAILABLE:
 - `select_random`: Pick random item from array
 - `select_index`: Pick specific index (0 = first, 1 = second, etc.)
 - `extract`: Copy field directly
 - `intelligent_select`: Pick best item based on criteria (for future AI enhancement)
+
+## ASSEMBLY STEP NAMING RULES:
+- Use descriptive names: "article_selector", "text_extractor", "data_processor"
+- Assembly step name becomes the variable prefix: {{step_name.output_field}}
+- Output field names should be clear: "selected_url", "clean_text", "processed_data"
 
 ## WORKFLOW JSON FORMAT:
 ```json
@@ -214,20 +279,38 @@ Create a complete workflow JSON that:
 }}
 ```
 
+## CRITICAL VALIDATION CHECKLIST:
+Before finalizing the workflow, verify:
+1. ✅ Every node name exists in available nodes list
+2. ✅ Every input field matches the node's exact schema
+3. ✅ Every {{variable}} reference has a matching step name and output field
+4. ✅ Data types match examples (arrays, integers, booleans, strings)
+5. ✅ Assembly steps create the exact fields referenced in next steps
+6. ✅ Variable chain flows logically: Node → Assembly → Next Node
+
 ## CRITICAL DATA TYPE EXAMPLES:
 - google-news-scraper keywords: `["AI", "finance"]` (ARRAY, not string)
 - google-news-scraper max_news: `10` (INTEGER, not string)
 - article-page-scraper headless: `true` (BOOLEAN, not string)
 - article-processor temperature: `0.3` (NUMBER, not string)
 
-## EXAMPLE VARIABLE SUBSTITUTION:
-- `{{google-news-scraper.articles}}` - Gets articles array from google-news-scraper
-- `{{article_selector.selected_url}}` - Gets selected_url from assembly step named article_selector
-- `{{article-page-scraper.article_text}}` - Gets article_text from article-page-scraper
+## WORKING VARIABLE SUBSTITUTION EXAMPLES:
+- `{{google-news-scraper.articles}}` - Array of articles from google-news-scraper node
+- `{{article_selector.selected_article_url}}` - URL from assembly step named "article_selector" 
+- `{{article-page-scraper.article_text}}` - Text from article-page-scraper node
+- `{{text_processor.clean_content}}` - Content from assembly step named "text_processor"
 
-Create the workflow JSON now. Be precise with field names AND data types, and ensure the workflow actually works with the available nodes.
+Create the workflow JSON now. Be precise with:
+1. Field names AND data types
+2. Variable references that actually exist
+3. Assembly step names that match variable prefixes
+4. Data flow that works with available nodes
 
-REMEMBER: Look at the EXAMPLE USAGE for each node to see the EXACT data format required!
+REMEMBER: 
+- Look at EXAMPLE USAGE for exact data formats
+- Validate EVERY {{variable}} reference
+- Ensure assembly output fields match variable references
+- Test the data flow logic before finalizing
 """
 
         try:
@@ -409,6 +492,13 @@ REMEMBER: Look at the EXAMPLE USAGE for each node to see the EXACT data format r
                 validation["errors"].append(f"Missing required field: {field}")
                 validation["valid"] = False
         
+        # Validate variable substitution chains
+        variable_validation = self._validate_variable_chains(workflow)
+        validation["errors"].extend(variable_validation["errors"])
+        validation["warnings"].extend(variable_validation["warnings"])
+        if not variable_validation["valid"]:
+            validation["valid"] = False
+        
         # Validate steps
         if 'steps' in workflow:
             for i, step in enumerate(workflow['steps']):
@@ -419,6 +509,73 @@ REMEMBER: Look at the EXAMPLE USAGE for each node to see the EXACT data format r
                     validation["valid"] = False
         
         return validation
+    
+    def _validate_variable_chains(self, workflow: Dict[str, Any]) -> Dict[str, Any]:
+        """Validate that all variable references actually exist in the workflow"""
+        validation = {
+            "valid": True,
+            "errors": [],
+            "warnings": []
+        }
+        
+        if 'steps' not in workflow:
+            return validation
+        
+        # Track available outputs from each step
+        available_outputs = {}
+        
+        for i, step in enumerate(workflow['steps']):
+            step_name = None
+            
+            if 'node' in step:
+                # Node step - track its outputs
+                node_name = step['node']
+                step_name = node_name
+                
+                # Add known outputs for this node type
+                if node_name in self.node_schemas:
+                    output_schema = self.node_schemas[node_name].get('output_schema', [])
+                    for output_field in output_schema:
+                        available_outputs[f"{step_name}.{output_field}"] = True
+            
+            elif 'assembly' in step:
+                # Assembly step - track its outputs
+                step_name = step.get('name', f'assembly_{i}')
+                assembly_config = step.get('assembly', {})
+                
+                # Add assembly outputs
+                for output_field in assembly_config.keys():
+                    available_outputs[f"{step_name}.{output_field}"] = True
+            
+            # Check variable references in this step's inputs
+            if 'inputs' in step:
+                self._check_variable_references_in_inputs(
+                    step['inputs'], available_outputs, i, validation
+                )
+        
+        return validation
+    
+    def _check_variable_references_in_inputs(self, inputs: Dict[str, Any], 
+                                           available_outputs: Dict[str, bool], 
+                                           step_index: int, validation: Dict[str, Any]):
+        """Check variable references in step inputs"""
+        import re
+        
+        for field_name, field_value in inputs.items():
+            if isinstance(field_value, str):
+                # Find variable references like {{step.field}}
+                pattern = r'\{\{([^}]+)\}\}'
+                matches = re.findall(pattern, field_value)
+                
+                for match in matches:
+                    variable_ref = match.strip()
+                    
+                    if variable_ref not in available_outputs:
+                        validation["errors"].append(
+                            f"Step {step_index}: Variable reference '{{{{{{variable_ref}}}}}}' not found. "
+                            f"Available outputs: {list(available_outputs.keys())}"
+                        )
+                        validation["valid"] = False
     
     def _validate_step(self, step: Dict[str, Any], step_index: int) -> Dict[str, Any]:
         """Validate individual workflow step"""
