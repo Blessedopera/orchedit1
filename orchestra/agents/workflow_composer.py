@@ -330,6 +330,11 @@ REMEMBER:
             # Extract JSON from response
             workflow_json = self._extract_json_from_response(response)
             
+            # Validate JSON format
+            if workflow_json:
+                # Ensure proper JSON formatting
+                workflow_json = self._ensure_proper_json_format(workflow_json)
+            
             if workflow_json:
                 # Validate the workflow
                 validation_result = self._validate_workflow(workflow_json)
@@ -476,6 +481,23 @@ REMEMBER:
         except Exception as e:
             print(f"Error extracting JSON: {e}")
             return None
+    
+    def _ensure_proper_json_format(self, workflow: Dict[str, Any]) -> Dict[str, Any]:
+        """Ensure workflow has proper JSON formatting for copy-paste"""
+        # Fix any formatting issues that might cause JSON parsing problems
+        
+        # Ensure all variable references use double curly braces
+        workflow_str = json.dumps(workflow, indent=2)
+        
+        # Fix single curly braces to double curly braces for variables
+        import re
+        workflow_str = re.sub(r'(?<!\{)\{([^{}]+)\}(?!\})', r'{{\1}}', workflow_str)
+        
+        # Parse back to ensure it's valid JSON
+        try:
+            return json.loads(workflow_str)
+        except json.JSONDecodeError:
+            return workflow
     
     def _validate_workflow(self, workflow: Dict[str, Any]) -> Dict[str, Any]:
         """Validate workflow structure and node usage"""
